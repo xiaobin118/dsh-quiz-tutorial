@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Quiz Deck",
+    "description": "Turn review context into practice decks: hand-worked solutions beside each question, wrong answers collected into a mistake log, deck generation via /skill, and removal of custom decks."
+  }
+}

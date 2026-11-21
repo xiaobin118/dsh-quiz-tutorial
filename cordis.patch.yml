@@ -1,0 +1,5 @@
+# dsh-quiz-tutorial bundle: the 刷题场 Web surface, the deck tools and the
+# deck-authoring skill.
+- insert:
+    - id: dsh-quiz-tutorial
+      name: dsh-quiz-tutorial
