@@ -11,7 +11,7 @@
  * Provides: withoutDeckAnswers, withoutDeckMistakes, withoutHiddenDeck,
  * withDeckVisible, readStored, MISTAKE_SEP, mistakeKey, splitMistakeKey,
  * normalizeHiddenDecks, normalizeMistakes, resolveQueueItem, mistakeRows,
- * formatTime, fetchDecks.
+ * formatTime, deckFingerprint, diffDecks, refreshSummary, fetchDecks.
  * Requires: STORAGE_KEY (base.js).
  */
 
@@ -117,6 +117,43 @@ function formatTime(ts) {
     })
   } catch {
     return ''
+  }
+}
+
+/**
+ * Fingerprint one deck for change detection.  The Host sends whole decks, so a
+ * stable JSON string is enough to tell "same deck" from "same id, new content"
+ * (a `quiz_save_deck` overwrite) without a version field.
+ */
+function deckFingerprint(deck) {
+  return JSON.stringify(deck)
+}
+
+/**
+ * Compare two deck lists by id + content.
+ * @returns {{added: string[], updated: string[], removed: string[]}}
+ */
+function diffDecks(previous, next) {
+  const before = new Map((previous ?? []).map((deck) => [deck.id, deckFingerprint(deck)]))
+  const after = new Map((next ?? []).map((deck) => [deck.id, deckFingerprint(deck)]))
+  const added = [...after.keys()].filter((id) => !before.has(id))
+  const updated = [...after.keys()].filter((id) => before.has(id) && before.get(id) !== after.get(id))
+  const removed = [...before.keys()].filter((id) => !after.has(id))
+  return { added, updated, removed }
+}
+
+/** What the refresh status line reports: totals plus the delta since last load. */
+function refreshSummary(previous, next, at = Date.now()) {
+  const diff = diffDecks(previous, next)
+  const list = next ?? []
+  return {
+    at,
+    total: list.length,
+    userCount: list.filter((deck) => deck.source === 'user').length,
+    added: diff.added,
+    updated: diff.updated,
+    removed: diff.removed,
+    changed: diff.added.length + diff.updated.length + diff.removed.length,
   }
 }
 

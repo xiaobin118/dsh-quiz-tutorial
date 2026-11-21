@@ -37,9 +37,10 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
 - **Question + solution**: matrices and 2–6 options; after answering, the aside shows the answer,
   the formula, step-by-step arithmetic with intermediate matrices, pitfalls, and why each wrong
   option is wrong.
-- **Math rendering**: `$...$`, `_{...}`/`^{...}`, `\frac`, `\sum`, Greek letters and friends in
-  prompts/solutions/notes render as real superscripts, subscripts and Unicode symbols (a small
-  local renderer: no HTML execution, no external requests).
+- **Math rendering**: prompts/solutions/notes are rendered by DSH's KaTeX Markdown primitive —
+  write LaTeX in `$...$` / `$$...$$` (`\frac`, `\sum`, `\mu_k`, `\hat{x}`, `\sigma^2`,
+  `bmatrix`). No HTML is executed and remote images/links are dropped; legacy Unicode math in
+  older decks is normalized to LaTeX on display.
 - **Mistake log**: wrong answers are collected automatically; filter, review the solution, redo,
   mark fixed, or review all open mistakes in a queue. A correct retry marks the entry fixed.
 - **`/skill dsh-quiz <topic>`**: the skill asks the agent to check existing decks, compute every
@@ -53,8 +54,8 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
 
 Decks are plain JSON. The file name must be `<id>.json`, one deck is capped at 512 KiB
 (measured in bytes before writing), over-long fields fail with an error instead of being
-silently truncated, and the file name must match the deck id. See
-[docs/deck-format.md](docs/deck-format.md) and [skill.md](skill.md).
+silently truncated, and math must be LaTeX inside `$...$` / `$$...$$` (no Unicode math, no bare
+`_`/`^`). See [docs/deck-format.md](docs/deck-format.md) and [skill.md](skill.md).
 
 The numbers in the bundled decks — including every distractor — are computed and asserted by
 [tools/gen_decks.py](tools/gen_decks.py), not typed by hand.
@@ -80,8 +81,10 @@ npm test                             # node --test (no deps, no network)
 python3 tools/gen_decks.py --check   # bundled decks match the generator
 ```
 
-The 1.0.1 fix for a 1.0.0 audit also added regression tests for the trust fence, the byte-size
-contract, deck validation bounds, and the client's progress/math helpers.
+The 1.0.1 work also replaced the local Unicode math renderer with DSH's KaTeX Markdown primitive
+(LaTeX-authored decks plus runtime normalization for legacy decks), made the refresh button report
+added/updated decks and host errors visibly, and added regression tests for the trust fence, the
+byte-size contract, deck validation bounds, refresh diffs, and the LaTeX normalizer.
 
 ## Contributing
 

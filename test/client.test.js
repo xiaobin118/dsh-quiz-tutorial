@@ -16,11 +16,12 @@ import vm from 'node:vm'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
-function loadClient() {
+function loadClient({ primitives = { MarkdownText() {} } } = {}) {
   const source = readFileSync(join(ROOT, 'client.js'), 'utf8')
   let config = null
   const registrations = []
   const styleTags = []
+  const requires = []
   const context = vm.createContext({
     window: {
       __ModuleLoader__: { load(candidate) { config = candidate } },
@@ -51,8 +52,13 @@ function loadClient() {
     useState: (value) => [value, () => {}],
   }
   const exported = config.factory((name) => {
-    if (name !== 'react') throw new Error(`unexpected require(${name})`)
-    return react
+    requires.push(name)
+    if (name === 'react') return react
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') {
+      if (primitives === null) throw new Error('module unavailable')
+      return primitives
+    }
+    throw new Error(`unexpected require(${name})`)
   })
   const ctx = {
     effect(fn) { return fn() },
@@ -76,6 +82,7 @@ function loadClient() {
     exported,
     registrations,
     styleTags,
+    requires,
     run: (expression) => vm.runInContext(expression, context),
   }
 }
@@ -94,62 +101,74 @@ test('the bundle registers the documented module id and plugin face', () => {
   assert.match(client.styleTags[0].textContent, /\.dshq-page/)
 })
 
-test('math tokens: plain prose passes through untouched', () => {
-  const tokens = client.run('mathTokens("普通文本，没有数学。")')
-  assert.deepEqual(JSON.parse(JSON.stringify(tokens)), [{ type: 'text', text: '普通文本，没有数学。' }])
+test('deck math is rendered through the KaTeX Markdown primitive', () => {
+  assert.ok(client.requires.includes('@deepseek-ai/dsh-client-ui-primitives'))
+  const bundle = readFileSync(join(ROOT, 'client.js'), 'utf8')
+  assert.match(bundle, /MarkdownText/)
+  assert.match(bundle, /variant: 'compact'/)
+  // the Unicode sup/sub renderer is gone: KaTeX is the only math path
+  assert.equal(bundle.includes('mathTokens'), false)
+  assert.equal(bundle.includes('dshq-math-sup'), false)
 })
 
-test('math tokens: subscripts and superscripts render as nodes', () => {
-  const tokens = JSON.parse(JSON.stringify(client.run('mathTokens("H_out = e^{−2.1115}")')))
-  assert.deepEqual(tokens, [
-    { type: 'text', text: 'H' },
-    { type: 'sub', tokens: [{ type: 'text', text: 'out' }] },
-    { type: 'text', text: ' = e' },
-    { type: 'sup', tokens: [{ type: 'text', text: '−2.1115' }] },
-  ])
+test('the primitive is optional: a host without it still registers the panel', () => {
+  const fallback = loadClient({ primitives: null })
+  assert.deepEqual(fallback.registrations.map((entry) => entry[0]), ['locale', 'slot', 'slot'])
+  assert.ok(fallback.requires.includes('@deepseek-ai/dsh-client-ui-primitives'))
 })
 
-test('math tokens: dollar delimiters are dropped, not shown', () => {
-  const tokens = JSON.parse(JSON.stringify(client.run('mathTokens("$x^2$ 和 q_ik")')))
-  assert.equal(JSON.stringify(tokens).includes('$'), false)
-  assert.deepEqual(tokens, [
-    { type: 'text', text: 'x' },
-    { type: 'sup', tokens: [{ type: 'text', text: '2' }] },
-    { type: 'text', text: ' 和 q' },
-    { type: 'sub', tokens: [{ type: 'text', text: 'ik' }] },
-  ])
+test('legacy deck text is normalized to $...$ around every math run', () => {
+  const strings = [
+    'J=Σ_{k=1}^{K}Σ_{x∈C_k}||x−μ_k||²。',
+    'p(y)=Σ_k π_k N(y;μ_k,σ_k²)；ln p(y) 是单个样本的对数似然贡献。',
+    '分配看距离平方；更新 μ_k=簇内均值；SSE=Σ||x−μ_k||²。',
+    'MSE = (1/n) Σ (x_i − x̂_i)²。',
+  ]
+  const banned = /[Σμσπγ²_^∈×−½⊙√≤≥≈≠→]/
+  const outside = (text) => text.replace(/\$\$[\s\S]*?\$\$|\$[^$]*\$/g, '')
+  for (const source of strings) {
+    const normalized = client.run(`toLatexMarkdown(${JSON.stringify(source)})`)
+    assert.ok(normalized.includes('$'), `normalized: ${normalized}`)
+    assert.equal(banned.test(outside(normalized)), false, `math left outside $...$: ${normalized}`)
+  }
 })
 
-test('math tokens: commands become symbols and fractions', () => {
-  assert.equal(JSON.stringify(client.run('mathTokens("\\\\frac{1}{2}")')), JSON.stringify([{ type: 'text', text: '1/2' }]))
-  assert.equal(JSON.stringify(client.run('mathTokens("\\\\frac{H+2P-K}{S}")')), JSON.stringify([{ type: 'text', text: '(H+2P-K)/S' }]))
-  assert.equal(JSON.stringify(client.run('mathTokens("\\\\sqrt{x}")')), JSON.stringify([{ type: 'text', text: '√x' }]))
-  const sum = JSON.parse(JSON.stringify(client.run('mathTokens("\\\\sum_{k=1}^{K}")')))
-  assert.deepEqual(sum, [
-    { type: 'text', text: 'Σ' },
-    { type: 'sub', tokens: [{ type: 'text', text: 'k=1' }] },
-    { type: 'sup', tokens: [{ type: 'text', text: 'K' }] },
-  ])
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(client.run('mathTokens("\\\\alpha_{k}")'))),
-    [
-      { type: 'text', text: 'α' },
-      { type: 'sub', tokens: [{ type: 'text', text: 'k' }] },
-    ],
-  )
+test('the four reported strings keep their prose and group scripts', () => {
+  const normalize = (source) => client.run(`toLatexMarkdown(${JSON.stringify(source)})`)
+  const samples = [
+    ['J=Σ_{k=1}^{K}Σ_{x∈C_k}||x−μ_k||²。',
+      'J=\\Sigma_{k=1}^{K}\\Sigma_{x\\in C_{k}}||x-\\mu_{k}||^{2}'],
+    ['MSE = (1/n) Σ (x_i − x̂_i)²。',
+      'MSE = (1/n) \\Sigma (x_{i} - \\hat{x}_{i})^{2}'],
+  ]
+  for (const [source, expected] of samples) {
+    const normalized = normalize(source)
+    assert.ok(normalized.includes(`$${expected}$`), `${normalized} should contain ${expected}`)
+  }
+  const probability = normalize('p(y)=Σ_k π_k N(y;μ_k,σ_k²)；ln p(y) 是单个样本的对数似然贡献。')
+  assert.ok(probability.includes('ln $p(y)$'), probability)
+  assert.ok(probability.includes('；'), 'Chinese prose survives outside math')
 })
 
-test('math tokens: unknown commands and LaTeX environments degrade, never throw', () => {
-  assert.equal(JSON.stringify(client.run('mathTokens("\\\\foo")')), JSON.stringify([{ type: 'text', text: 'foo' }]))
-  assert.ok(client.run('mathTokens("\\\\begin{matrix} x \\\\end{matrix}")').length > 0)
-  assert.equal(client.run('mathTokens("x^{a_b}")[1].type'), 'sup')
-  assert.equal(client.run('mathTokens("x^{a_b}")[1].tokens[1].type'), 'sub')
+test('latexPlainText strips delimiters and commands for aria labels', () => {
+  const plain = (source) => client.run(`latexPlainText(${JSON.stringify(source)})`)
+  assert.equal(plain('$H_{out}$ 的平方'), 'Hout 的平方')
+  assert.equal(plain('$\\mu_k$'), 'μk')
+  assert.equal(plain('||x−μ_k||²').includes('$'), false)
 })
 
-test('mathPlainText gives accessible labels without markup', () => {
-  assert.equal(client.run('mathPlainText("||x−μ_k||²")'), '||x−μk||²')
-  assert.equal(client.run('mathPlainText("$J=Σ_{k=1}^{K}$")'), 'J=Σk=1K')
+test('authored LaTeX passes through unchanged', () => {
+  const authored = '输出 $H_{out} = \\lfloor (H + 2P - K)/S \\rfloor + 1$，见 $$\\sum_{k=1}^{K} \\pi_k = 1$$。'
+  assert.equal(client.run(`toLatexMarkdown(${JSON.stringify(authored)})`), authored)
 })
+
+test('malformed legacy math degrades to text instead of throwing', () => {
+  for (const source of ['未闭合的 { 花括号 x_', '结尾反斜杠 C_k\\', '孤立 ^ 和 _', '$$ 未闭合']) {
+    const normalized = client.run(`toLatexMarkdown(${JSON.stringify(source)})`)
+    assert.equal(typeof normalized, 'string')
+  }
+})
+
 
 test('progress helpers purge exactly one deck', () => {
   assert.deepEqual(
@@ -205,6 +224,50 @@ test('reduced-motion media query sits at CSS top level, not inside @keyframes', 
     assert.equal(depth, 0, `${label.trim()} must be top-level CSS (found depth ${depth})`)
   }
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.dshq-loader-dot \{ animation: none;/)
+})
+
+test('refresh diff reports added / updated / removed decks honestly', () => {
+  const run = (expression) => JSON.parse(JSON.stringify(client.run(expression)))
+  const first = [{ id: 'a', source: 'user', title: 'A' }, { id: 'b', source: 'bundled', title: 'B' }]
+  const second = [
+    { id: 'a', source: 'user', title: 'A v2' },
+    { id: 'c', source: 'user', title: 'C' },
+  ]
+  const diff = run(`diffDecks(${JSON.stringify(first)}, ${JSON.stringify(second)})`)
+  assert.deepEqual(diff, { added: ['c'], updated: ['a'], removed: ['b'] })
+
+  const same = run(`refreshSummary(${JSON.stringify(second)}, ${JSON.stringify(second)})`)
+  assert.equal(same.changed, 0)
+  assert.equal(same.total, 2)
+  assert.equal(same.userCount, 2)
+})
+
+test('refresh after a save: new id is added, same id is updated, not both', () => {
+  const run = (expression) => JSON.parse(JSON.stringify(client.run(expression)))
+  const empty = []
+  const saved = [{ id: 'ml-new', source: 'user', title: '新题集', questions: [{ id: 'q1' }] }]
+  const added = run(`refreshSummary(${JSON.stringify(empty)}, ${JSON.stringify(saved)})`)
+  assert.deepEqual(added.added, ['ml-new'])
+  assert.deepEqual(added.updated, [])
+  assert.equal(added.changed, 1)
+
+  const overwritten = [{ ...saved[0], title: '新题集 v2' }]
+  const updated = run(`refreshSummary(${JSON.stringify(saved)}, ${JSON.stringify(overwritten)})`)
+  assert.deepEqual(updated.added, [])
+  assert.deepEqual(updated.updated, ['ml-new'], 'an id collision is an update, never a second add')
+  assert.equal(updated.changed, 1)
+
+  const unchanged = run(`refreshSummary(${JSON.stringify(overwritten)}, ${JSON.stringify(overwritten)})`)
+  assert.equal(unchanged.changed, 0)
+  assert.deepEqual(unchanged.added, [])
+})
+
+test('deck markdown cannot fetch remote media', () => {
+  const source = '图示 ![图](https://evil.example/x.png) 与 [链接](https://evil.example/a)'
+  const cleaned = client.run(`neutralizeMarkdownMedia(${JSON.stringify(source)})`)
+  assert.equal(cleaned.includes('http'), false)
+  assert.ok(cleaned.includes('图示'))
+  assert.ok(cleaned.includes('链接'))
 })
 
 test('keyboard hint matches the six-option schema', () => {

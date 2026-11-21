@@ -42,7 +42,7 @@
           h('span', { className: 'dshq-mistake-badge' }, t('mistakes.wrongTimes', { n: rec.wrong || 1 })),
           mastered ? h('span', { className: 'dshq-mistake-done' }, t('mistakes.filter.mastered')) : null),
         question
-          ? h('p', { className: 'dshq-mistake-prompt' }, h(MathText, { text: question.prompt }))
+          ? h('div', { className: 'dshq-mistake-prompt' }, h(MathText, { text: question.prompt, t }))
           : h('p', { className: 'dshq-mistake-prompt' }, t('mistakes.missingDeck')),
         question
           ? h('div', { className: 'dshq-mistake-meta' },

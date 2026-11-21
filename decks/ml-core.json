@@ -3,19 +3,19 @@
   "id": "ml-core",
   "title": "机器学习核心概念",
   "subject": "机器学习",
-  "description": "5 道概念判断题，覆盖过拟合、正则化、偏差-方差、precision/recall 与数据泄漏。",
+  "description": "5 道概念判断题，覆盖过拟合、正则化、偏差-方差、$precision/recall$ 与数据泄漏。",
   "notes": [
     {
       "title": "过拟合 vs 欠拟合",
-      "body": "训练 loss 低、验证 loss 高 → 过拟合；训练 loss 本身就高 → 欠拟合。"
+      "body": "训练 loss 低、验证 loss 高 $\\to$ 过拟合；训练 loss 本身就高 $\\to$ 欠拟合。"
     },
     {
       "title": "正则化",
-      "body": "L1 稀疏、L2 收缩；λ 越大正则越强，太大会欠拟合。"
+      "body": "$L1$ 稀疏、$L2$ 收缩；$\\lambda$ 越大正则越强，太大会欠拟合。"
     },
     {
       "title": "分类指标",
-      "body": "precision = TP/(TP+FP)，recall = TP/(TP+FN)，accuracy = (TP+TN)/全部。"
+      "body": "$precision = TP/(TP+FP)$，$recall = TP/(TP+FN)$，$accuracy = (TP+TN)$/全部。"
     },
     {
       "title": "数据泄漏",
@@ -60,16 +60,16 @@
         },
         {
           "title": "对策",
-          "body": "早停、权重衰减（L2）、Dropout、数据增强、减小模型容量。"
+          "body": "早停、权重衰减（$L2$）、Dropout、数据增强、减小模型容量。"
         }
       ],
       "pitfall": "不要只看训练 loss 判断模型好坏；验证集曲线才是泛化能力的信号。"
     },
     {
       "id": "c2",
-      "topic": "L2 正则化",
+      "topic": "$L2$ 正则化",
       "level": "概念",
-      "prompt": "在损失函数中加入 L2 正则项 λ‖w‖²，主要作用是什么？",
+      "prompt": "在损失函数中加入 $L2$ 正则项 $\\lambda\\| w\\|^{2}$，主要作用是什么？",
       "inputs": [],
       "conditions": "",
       "options": [
@@ -90,22 +90,22 @@
         {
           "kind": "text",
           "text": "把权重全部变成 0",
-          "note": "L2 只是把权重向 0 收缩，不会精确变成 0（L1 更容易产生稀疏解）。"
+          "note": "$L2$ 只是把权重向 0 收缩，不会精确变成 0（$L1$ 更容易产生稀疏解）。"
         }
       ],
       "answer": 2,
-      "formula": "L2 对权重大小施加惩罚，等价于高斯先验；λ 越大收缩越强。",
+      "formula": "$L2$ 对权重大小施加惩罚，等价于高斯先验；$\\lambda$ 越大收缩越强。",
       "steps": [
         {
           "title": "为什么有效",
-          "body": "大的权重会让输出对输入的微小变化非常敏感，L2 惩罚把权重压小，降低模型方差。"
+          "body": "大的权重会让输出对输入的微小变化非常敏感，$L2$ 惩罚把权重压小，降低模型方差。"
         },
         {
-          "title": "与 L1 的区别",
-          "body": "L1 惩罚 |w|，更容易把部分权重压到 0（稀疏）；L2 惩罚 w²，一般只整体收缩。"
+          "title": "与 $L1$ 的区别",
+          "body": "$L1$ 惩罚 |w|，更容易把部分权重压到 0（稀疏）；$L2$ 惩罚 $w^{2}$，一般只整体收缩。"
         }
       ],
-      "pitfall": "正则化是拿一点训练精度换泛化；λ 太大会导致欠拟合。"
+      "pitfall": "正则化是拿一点训练精度换泛化；$\\lambda$ 太大会导致欠拟合。"
     },
     {
       "id": "c3",
@@ -140,7 +140,7 @@
       "steps": [
         {
           "title": "看差距",
-          "body": "训练误差与验证误差都高，且两者接近 → 偏差大；训练误差低、验证误差高，且差距大 → 方差大。"
+          "body": "训练误差与验证误差都高，且两者接近 $\\to$ 偏差大；训练误差低、验证误差高，且差距大 $\\to$ 方差大。"
         },
         {
           "title": "对策",
@@ -178,7 +178,7 @@
         }
       ],
       "answer": 2,
-      "formula": "precision = TP / (TP + FP)；recall = TP / (TP + FN)。",
+      "formula": "$precision = TP / (TP + FP)$；$recall = TP / (TP + FN)$。",
       "steps": [
         {
           "title": "记忆方法",
@@ -189,7 +189,7 @@
           "body": "阈值调高通常提高 precision、降低 recall；两者要按业务场景权衡。"
         }
       ],
-      "pitfall": "precision 与 recall 的分母不同，别把 TP/(TP+FP) 和 TP/(TP+FN) 记混。"
+      "pitfall": "precision 与 recall 的分母不同，别把 $TP/(TP+FP)$ 和 $TP/(TP+FN)$ 记混。"
     },
     {
       "id": "c5",

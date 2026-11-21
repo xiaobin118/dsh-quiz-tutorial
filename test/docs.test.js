@@ -42,21 +42,29 @@ test('the documented worked example is arithmetically consistent', () => {
     assert.ok(doc.includes('[[2]]'), `${file}: correct option is 1×1 [[2]]`)
     assert.ok(doc.includes('[[3]]'), `${file}: "forgot bias" distractor is [[3]]`)
     assert.ok(doc.includes('[[4]]'), `${file}: "flipped bias" distractor is [[4]]`)
-    assert.ok(doc.includes('⌊(2 − 2)/1⌋ + 1 = 1'), `${file}: output size matches the 2×2 input`)
-    assert.ok(doc.includes('1×1 + 0×(−1) + 0×0 + 1×2 = 3'), `${file}: substitution is written out`)
-    assert.ok(!doc.includes('2×2 最大池化'), `${file}: no impossible pooling step`)
+    assert.ok(doc.includes('lfloor(2 - 2)/1') && doc.includes('rfloor + 1 = 1'), `${file}: output size matches the 2×2 input`)
+    assert.ok(doc.includes('times1 + 0') && doc.includes('times(-1)') && doc.includes('times2 = 3'), `${file}: substitution is written out`)
+    assert.ok(!doc.includes('2\\times2$ 最大池化'), `${file}: no impossible pooling step`)
     assert.ok(!doc.includes('[[2, 4], [4, 3]]'), `${file}: stale 2×2 example removed`)
   }
 })
 
-test('the math rendering convention is documented', () => {
+test('the math convention is LaTeX-only and documented as such', () => {
   const format = read('docs/deck-format.md')
-  for (const needle of ['_{...}', '^{...}', '$...$', '\\frac', '\\sum', '\\begin{...}']) {
+  for (const needle of ['$...$', '$$...$$', '\\frac', '\\sum', '\\mu', '\\hat', 'KaTeX', 'bmatrix']) {
     assert.ok(format.includes(needle), `docs/deck-format.md documents ${needle}`)
   }
+  assert.match(format, /必须写 LaTeX/)
+  assert.match(format, /Unicode 数学/)
   const skill = read('skill.md')
-  assert.ok(skill.includes('公式怎么写'))
-  assert.match(skill, /不支持|不要\*\*写|不要写/)
+  assert.match(skill, /## 3\. 公式必须写 LaTeX/)
+  for (const needle of ['$\\mu_k$', '\\sum_{k=1}^{K}', '\\hat{x}', '\\sigma_k^2', '用 Unicode 数学字符代替 LaTeX']) {
+    assert.ok(skill.includes(needle), `skill.md requires ${needle}`)
+  }
+  // The agent-facing tool description must teach the same rule.
+  const host = read('index.js')
+  assert.match(host, /公式写法（硬性）/)
+  assert.match(host, /KaTeX/)
 })
 
 test('install docs prefer the published npm package and keep the GitHub fallback', () => {

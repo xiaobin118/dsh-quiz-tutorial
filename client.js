@@ -105,6 +105,17 @@ const zh = {
   'app.error': '题集加载失败',
   'app.retry': '重试',
   'app.dismiss': '知道了',
+  'markdown.copy': '复制代码',
+  'markdown.copied': '已复制',
+  'markdown.footnotes': '脚注',
+  'refresh.failed': '题集刷新失败',
+  'refresh.retry': '重试',
+  'refresh.result': '已刷新：{total} 套题集（{users} 套用户题集）',
+  'refresh.added': '新增 {n}',
+  'refresh.updated': '更新 {n}',
+  'refresh.removed': '移除 {n}',
+  'refresh.noChange': '没有变化',
+  'refresh.lastAt': '最近刷新 {time}',
   'app.empty': '还没有题集',
   'app.emptyHint': '让 DSH 按复习内容出题：在对话里说「用 quiz_save_deck 为刚才复习的内容出一套题」，保存后回到这里点「刷新题集」。',
   'app.sourceUser': '自建',
@@ -204,6 +215,17 @@ const en = {
   'app.error': 'Could not load decks',
   'app.retry': 'Retry',
   'app.dismiss': 'Dismiss',
+  'markdown.copy': 'Copy code',
+  'markdown.copied': 'Copied',
+  'markdown.footnotes': 'Footnotes',
+  'refresh.failed': 'Could not refresh decks',
+  'refresh.retry': 'Retry',
+  'refresh.result': 'Refreshed: {total} decks ({users} custom)',
+  'refresh.added': 'added {n}',
+  'refresh.updated': 'updated {n}',
+  'refresh.removed': 'removed {n}',
+  'refresh.noChange': 'No changes',
+  'refresh.lastAt': 'last refresh {time}',
   'app.empty': 'No decks yet',
   'app.emptyHint': 'Ask DSH to build a deck from the current review context: "use quiz_save_deck for the topic we just reviewed", then press Refresh.',
   'app.sourceUser': 'custom',
@@ -338,14 +360,24 @@ const CSS = `
   grid-template-columns: 212px minmax(0, 1fr) 384px;
 }
 .dshq-alert {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   margin: 8px 14px 0; padding: 8px 12px;
   border-radius: 9px; font-size: 12.5px; line-height: 1.5;
   color: var(--dsw-alias-state-error-primary);
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
 }
-.dshq-alert > span { flex: 1 1 auto; min-width: 0; }
+.dshq-alert-body { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.dshq-alert-title { display: block; margin-bottom: 2px; }
+.dshq-alert-line { font-size: 11.5px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
+.dshq-refresh-status {
+  margin: 8px 14px 0; padding: 6px 12px;
+  border-radius: 9px; font-size: 12px; line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-fill-l1);
+  border: 1px solid var(--dsw-alias-border-l1);
+}
+.dshq-last-refresh { font-size: 10.5px; color: var(--dsw-alias-label-tertiary); white-space: nowrap; }
 .dshq-rail {
   min-height: 0; overflow: auto;
   padding: 14px 10px 18px;
@@ -468,7 +500,7 @@ const CSS = `
 .dshq-option.is-picked-correct .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-state-success-primary); border-color: transparent; }
 .dshq-option.is-picked-wrong .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-state-error-primary); border-color: transparent; }
 .dshq-opt-body { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; }
-.dshq-opt-value { font-size: 12.5px; }
+.dshq-opt-value { min-width: 0; font-size: 12.5px; text-align: left; }
 .dshq-opt-mark { flex: 0 0 auto; display: inline-flex; }
 .dshq-opt-mark.is-good { color: var(--dsw-alias-state-success-primary); }
 .dshq-opt-mark.is-bad { color: var(--dsw-alias-state-error-primary); }
@@ -557,11 +589,23 @@ const CSS = `
 .dshq-empty h2 { margin: 0; font-size: 15px; color: var(--dsw-alias-label-primary); }
 .dshq-empty p { margin: 0; max-width: 46ch; font-size: 12.5px; }
 .dshq-loader { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 60px 20px; color: var(--dsw-alias-label-secondary); }
-.dshq-math-sup, .dshq-math-sub {
-  font-size: .72em; line-height: 0;
+/* Deck prose is rendered by DSH's Markdown/KaTeX primitive inside .dshq-md.
+   Zero the first/last block margins so existing card spacing is preserved,
+   and let long display math scroll instead of breaking the layout. */
+.dshq-md { min-width: 0; max-width: 100%; }
+.dshq-md > div { margin: 0; }
+.dshq-md > div > :first-child { margin-top: 0; }
+.dshq-md > div > :last-child { margin-bottom: 0; }
+.dshq-md .katex-display {
+  margin: 6px 0; padding: 2px 0 4px;
+  overflow-x: auto; overflow-y: hidden;
 }
-.dshq-math-sup { vertical-align: super; }
-.dshq-math-sub { vertical-align: sub; }
+.dshq-md .katex { font-size: 1.02em; }
+.dshq-md.is-fallback { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dshq-condition .dshq-md, .dshq-cond-value .dshq-md { display: inline; }
+.dshq-opt-value .dshq-md > div { display: inline-block; }
+.dshq-pick-text .dshq-md > div { display: inline-block; }
+.dshq-diagnostic-note { min-width: 0; }
 .dshq-loader-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-brand-primary); animation: dshq-pulse 1s infinite ease-in-out; }
 .dshq-loader-dot:nth-child(2) { animation-delay: .15s; }
 .dshq-loader-dot:nth-child(3) { animation-delay: .3s; }
@@ -734,182 +778,378 @@ function letterOf(index) {
 
 /**
  * @module math
- * Math-lite rendering for deck prose.
+ * LaTeX authoring support for deck prose.
  *
- * Deck content is authored by an agent, so it arrives with LaTeX-ish markup:
- * `J=\sum_{k=1}^{K}...`, `H_out`, `e^{−2.1115}`, `\frac{a}{b}`, `\gamma_ik`.
- * Deck text is rendered as React text (never HTML), so `_{...}` and `^{...}`
- * used to show up literally.  This tokenizer turns the common subset into
- * `<sup>`/`<sub>` and Unicode symbols; it is deliberately not a TeX engine (no
- * macro expansion, no layout), and unknown commands degrade to their bare name.
- * `$...$` / `$$...$$` delimiters are simply dropped, so both "wrap math in
- * dollars" and "bare `_`/`^`" authoring styles render.
+ * Decks are rendered by DSH's KaTeX-backed `MarkdownText`, so the authoring
+ * convention is `$...$` (inline) and `$$...$$` (display).  Two helpers live
+ * here, both pure and testable without React:
  *
- * Provides: MATH_SYMBOLS, MATH_IGNORED, MATH_WRAPPERS, readMathGroup,
- * wrapMathGroup, readMathCommand, readMathScript, mathTokens, mathPlainText.
- * Requires: nothing.  The React component lives in components.js.
+ * - `toLatexMarkdown(text)` normalizes legacy decks: decks written before the
+ *   convention used bare `_`/`^` scripts and Unicode math (`Σ`, `μ`, `²`).
+ *   Text that already contains a `$` delimiter is returned untouched.  Other
+ *   text is scanned for math-looking runs, those runs are converted to LaTeX
+ *   commands and wrapped in `$...$`, and Chinese prose between them is left
+ *   alone.  Unbalanced braces/commands leave the run as literal text instead
+ *   of producing broken math.
+ * - `latexPlainText(text)` produces a readable label for `aria-label`, where
+ *   `MarkdownText` cannot be used.
+ *
+ * The renderer itself lives in components.js and only ever calls KaTeX through
+ * `MarkdownText`; this module must not grow a second (Unicode) render path.
  */
 
-/**
- * Math-lite rendering for deck prose (I9).
- *
- * Deck content is authored by an agent, so it arrives with LaTeX-ish markup:
- * `J=\sum_{k=1}^{K}...`, `H_out`, `e^{−2.1115}`, `\frac{a}{b}`, `\gamma_ik`.
- * The client renders deck text as plain React text (never HTML), so `_{...}`
- * and `^{...}` used to show up literally.  This tokenizer turns the common
- * subset into `<sup>`/`<sub>` and Unicode symbols; it is deliberately not a
- * TeX engine (no macro expansion, no layout), and unknown commands degrade to
- * their bare name.  `$...$` / `$$...$$` delimiters are simply dropped, so both
- * "wrap math in dollars" and "bare `_`/`^`" authoring styles render.
- */
-const MATH_SYMBOLS = {
-  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε', zeta: 'ζ',
-  eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν',
-  xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ', varphi: 'φ',
-  chi: 'χ', psi: 'ψ', omega: 'ω',
-  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ',
-  Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
-  sum: 'Σ', prod: 'Π', int: '∫', oint: '∮', infty: '∞', partial: '∂', nabla: '∇',
-  cdot: '·', times: '×', div: '÷', pm: '±', mp: '∓', ast: '∗', star: '⋆',
-  le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠', approx: '≈', equiv: '≡',
-  sim: '∼', propto: '∝', ll: '≪', gg: '≫',
-  to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', mapsto: '↦',
-  in: '∈', notin: '∉', subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇',
-  cup: '∪', cap: '∩', emptyset: '∅', forall: '∀', exists: '∃', neg: '¬', land: '∧', lor: '∨',
-  lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩',
-  cdots: '⋯', ldots: '…', dots: '…', vdots: '⋮', ddots: '⋱',
-  angle: '∠', perp: '⊥', parallel: '∥', triangle: '△',
-  quad: ' ', qquad: '  ', '%': '%', '#': '#', '&': '&', _: '_', '{': '{', '}': '}',
+const GREEK = {
+  α: '\\alpha', β: '\\beta', γ: '\\gamma', δ: '\\delta', ε: '\\varepsilon',
+  ζ: '\\zeta', η: '\\eta', θ: '\\theta', ι: '\\iota', κ: '\\kappa',
+  λ: '\\lambda', μ: '\\mu', ν: '\\nu', ξ: '\\xi', π: '\\pi', ρ: '\\rho',
+  σ: '\\sigma', τ: '\\tau', υ: '\\upsilon', φ: '\\varphi', χ: '\\chi',
+  ψ: '\\psi', ω: '\\omega',
+  Γ: '\\Gamma', Δ: '\\Delta', Θ: '\\Theta', Λ: '\\Lambda', Ξ: '\\Xi',
+  Π: '\\Pi', Σ: '\\Sigma', Υ: '\\Upsilon', Φ: '\\Phi', Ψ: '\\Psi', Ω: '\\Omega',
 }
 
-/** `\left(` etc. only change TeX layout; the delimiter itself is kept. */
-const MATH_IGNORED = new Set([
-  'left', 'right', 'big', 'Big', 'bigg', 'Bigg', 'displaystyle', 'textstyle', 'limits', 'nolimits',
-])
+const SYMBOLS = {
+  '∑': '\\sum', '∏': '\\prod', '∫': '\\int', '∞': '\\infty', '√': '\\sqrt',
+  '∈': '\\in', '∉': '\\notin', '×': '\\times', '·': '\\cdot', '⋅': '\\cdot',
+  '÷': '\\div', '±': '\\pm', '∓': '\\mp', '≤': '\\le', '≥': '\\ge',
+  '≠': '\\ne', '≈': '\\approx', '≡': '\\equiv', '∼': '\\sim', '~': '\\sim',
+  '∝': '\\propto', '→': '\\to', '⇒': '\\Rightarrow', '↔': '\\leftrightarrow',
+  '∪': '\\cup', '∩': '\\cap', '⊂': '\\subset', '⊆': '\\subseteq',
+  '∅': '\\emptyset', '∀': '\\forall', '∃': '\\exists', '¬': '\\neg',
+  '∧': '\\wedge', '∨': '\\vee', '∂': '\\partial', '∇': '\\nabla',
+  '⌊': '\\lfloor', '⌋': '\\rfloor', '⌈': '\\lceil', '⌉': '\\rceil',
+  '⟨': '\\langle', '⟩': '\\rangle', '⋯': '\\cdots', '…': '\\ldots',
+  '⊙': '\\odot', '⊗': '\\otimes', '‖': '\\|', '−': '-', '′': "'",
+  '½': '\\frac{1}{2}', '⅓': '\\frac{1}{3}', '¼': '\\frac{1}{4}', '¾': '\\frac{3}{4}',
+}
 
-/** Commands whose `{...}` argument is plain text, not more math. */
-const MATH_WRAPPERS = new Set(['text', 'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'operatorname'])
+const SUPERSCRIPT_DIGITS = {
+  '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+  '⁺': '+', '⁻': '-',
+}
 
-function readMathGroup(source, start) {
-  let i = start
-  while (i < source.length && /\s/.test(source[i])) i += 1
-  if (i >= source.length || source[i] !== '{') return null
-  let depth = 0
-  for (let j = i; j < source.length; j += 1) {
-    if (source[j] === '{') depth += 1
-    else if (source[j] === '}') {
-      depth -= 1
-      if (depth === 0) return { text: source.slice(i + 1, j), next: j + 1 }
+const SUBSCRIPT_DIGITS = {
+  '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+  'ₐ': 'a', 'ₑ': 'e', 'ᵢ': 'i', 'ⱼ': 'j', 'ₖ': 'k', 'ₙ': 'n', 'ₚ': 'p', 'ᵣ': 'r', 'ₛ': 's', 'ₜ': 't',
+  'ₓ': 'x', 'ₔ': 'e',
+}
+
+const COMBINING = {
+  '\u0302': 'hat', '\u0304': 'bar', '\u0305': 'overline', '\u0307': 'dot',
+  '\u0308': 'ddot', '\u0303': 'tilde', '\u030C': 'check',
+}
+
+const OPERATORS = new Set(['=', '+', '-', '*', '/', '<', '>', '|', '(', ')', '[', ']', '^', '_', '{', '}', ',', ';', ':'])
+const OPENERS = new Set(['(', '[', '{', '|'])
+const COMMAND_END = /[A-Za-z]/
+
+function isAsciiLetter(ch) {
+  return ch !== undefined && /[A-Za-z]/.test(ch)
+}
+
+function isDigit(ch) {
+  return ch !== undefined && /[0-9]/.test(ch)
+}
+
+function isMathSymbol(ch) {
+  return ch !== undefined && (Object.prototype.hasOwnProperty.call(GREEK, ch)
+    || Object.prototype.hasOwnProperty.call(SYMBOLS, ch)
+    || Object.prototype.hasOwnProperty.call(SUPERSCRIPT_DIGITS, ch)
+    || Object.prototype.hasOwnProperty.call(SUBSCRIPT_DIGITS, ch)
+    || Object.prototype.hasOwnProperty.call(COMBINING, ch))
+}
+
+function isOperator(ch) {
+  return ch !== undefined && OPERATORS.has(ch)
+}
+
+/** Candidate starter: a backslash command, a math symbol, or a word/digit id. */
+function startsMath(source, index) {
+  const ch = source[index]
+  // "·" and "…" are also Chinese separators; they may continue a run but never
+  // start one, or "第 3 步 · 2×2" would become "$\cdot 2\times2$".
+  if (ch === '·' || ch === '…' || ch === '⋯') return false
+  if (ch === '\\') return true
+  if (isMathSymbol(ch)) return true
+
+  if (isAsciiLetter(ch)) {
+    if (index > 0 && (isAsciiLetter(source[index - 1]) || isDigit(source[index - 1]))) return false
+    let end = index
+    while (end < source.length && isAsciiLetter(source[end])) end += 1
+    const next = source[end]
+    if (next === '_' || next === '^' || next === '(' || next === '[' || next === '|' || next === '\\') return true
+    if (isDigit(next)) return true
+    if (next === ':' && (isAsciiLetter(source[end + 1]) || isDigit(source[end + 1]) || isMathSymbol(source[end + 1]))) return true
+    if (next !== undefined && isMathSymbol(next)) return true
+    if (next === '-' && !isAsciiLetter(source[end + 1])) return true
+    if (next !== undefined && isOperator(next) && next !== ',' && next !== ';' && next !== ':' && next !== '|') return true
+    // "MSE = ..." / "min || ...": skip spaces before an operator or symbol
+    let spaced = end
+    while (spaced < source.length && source[spaced] === ' ') spaced += 1
+    if (spaced > end && spaced < source.length) {
+      const after = source[spaced]
+      if (after === '=' || after === '|' || after === '+' || after === '-' || after === '/'
+        || after === '<' || after === '>' || after === '×' || after === '·' || isMathSymbol(after)) return true
     }
+    return false
   }
-  return null
+
+  if (isDigit(ch)) {
+    if (index > 0 && (isAsciiLetter(source[index - 1]) || isDigit(source[index - 1]) || source[index - 1] === '.')) return false
+    let end = index
+    while (end < source.length && isDigit(source[end])) end += 1
+    const next = source[end]
+    if (next === ',' && isDigit(source[end + 1])) return true
+    if (next === '.' && isDigit(source[end + 1])) return true
+    if (next === '_' || next === '^' || next === '(' || next === '[') return true
+    if (next !== undefined && isMathSymbol(next)) return true
+    if (next !== undefined && isOperator(next) && next !== ',' && next !== ';' && next !== ':' && next !== '|') return true
+    return false
+  }
+
+  return false
 }
 
-function wrapMathGroup(text) {
-  const trimmed = text.trim()
-  if (trimmed.length <= 1 || !/[\s+*/×·]/.test(trimmed)) return trimmed
-  return `(${trimmed})`
+/** Whether a space at `space` may continue the run (next char is math-ish). */
+function spaceContinues(source, space, previous, insideGroup = false) {
+  let next = space
+  while (next < source.length && source[next] === ' ') next += 1
+  if (next >= source.length) return -1
+  const ch = source[next]
+  if (isDigit(ch) || isMathSymbol(ch) || isOperator(ch)) return next
+  // Inside brackets/braces a space before a word is still math: f(x, y), E_q[log p(x)].
+  if (isAsciiLetter(ch) && (insideGroup || OPERATORS.has(previous) || isMathSymbol(previous))) return next
+  return -1
 }
 
-function readMathCommand(source, start) {
-  let i = start + 1
-  if (i >= source.length) return { text: '\\', next: i }
-  if (!/[A-Za-z]/.test(source[i])) {
-    const char = source[i]
-    if (char === ',' || char === ';' || char === ':' || char === ' ') return { text: ' ', next: i + 1 }
-    if (char === '!') return { text: '', next: i + 1 }
-    return { text: char, next: i + 1 }
-  }
-  let end = i
-  while (end < source.length && /[A-Za-z]/.test(source[end])) end += 1
-  const name = source.slice(i, end)
-  if (MATH_IGNORED.has(name)) return { text: '', next: end }
-  if (name === 'frac' || name === 'dfrac' || name === 'tfrac') {
-    const numerator = readMathGroup(source, end)
-    const denominator = numerator === null ? null : readMathGroup(source, numerator.next)
-    if (numerator === null || denominator === null) return { text: `${name}`, next: end }
-    return {
-      text: `${wrapMathGroup(numerator.text)}/${wrapMathGroup(denominator.text)}`,
-      next: denominator.next,
-    }
-  }
-  if (name === 'sqrt') {
-    const group = readMathGroup(source, end)
-    if (group === null) return { text: '√', next: end }
-    return { text: `√${wrapMathGroup(group.text)}`, next: group.next }
-  }
-  if (MATH_WRAPPERS.has(name)) {
-    const group = readMathGroup(source, end)
-    if (group === null) return { text: '', next: end }
-    return { text: group.text, next: group.next }
-  }
-  if (Object.prototype.hasOwnProperty.call(MATH_SYMBOLS, name)) {
-    return { text: MATH_SYMBOLS[name], next: end }
-  }
-  return { text: name, next: end }
-}
-
-function readMathScript(source, start) {
-  if (start >= source.length) return null
-  if (source[start] === '{') return readMathGroup(source, start)
+function scanRun(source, start) {
   let end = start
-  if (source[end] === '−' || source[end] === '-') end += 1
-  while (end < source.length && /[0-9A-Za-z.]/.test(source[end])) end += 1
-  if (end === start) return null
-  return { text: source.slice(start, end), next: end }
-}
-
-/**
- * Tokenize deck prose into `{type:'text'}` / `{type:'sup'|'sub', tokens}` nodes.
- * Pure and side-effect free so `test/client-state.test.js` can assert it.
- */
-function mathTokens(value) {
-  const source = String(value ?? '')
-  const nodes = []
-  let buffer = ''
-  const flush = () => {
-    if (buffer !== '') {
-      nodes.push({ type: 'text', text: buffer })
-      buffer = ''
-    }
-  }
-  let i = 0
-  while (i < source.length) {
-    const char = source[i]
-    if (char === '$') {
-      i += 1
+  let parenDepth = 0
+  let braceDepth = 0
+  while (end < source.length) {
+    const ch = source[end]
+    if (isAsciiLetter(ch) || isDigit(ch) || ch === '\\' || ch === "'") {
+      end += 1
       continue
     }
-    if (char === '\\') {
-      const command = readMathCommand(source, i)
-      buffer += command.text
-      i = command.next
+    if (ch === '{') {
+      braceDepth += 1
+      end += 1
       continue
     }
-    if (char === '^' || char === '_') {
-      const script = readMathScript(source, i + 1)
-      if (script === null) {
-        buffer += char
-        i += 1
+    if (ch === '}') {
+      braceDepth = Math.max(0, braceDepth - 1)
+      end += 1
+      continue
+    }
+    if (isMathSymbol(ch)) {
+      end += 1
+      continue
+    }
+    if (ch === '.' && isDigit(source[end - 1]) && isDigit(source[end + 1])) {
+      end += 1
+      continue
+    }
+    if (ch === '(' || ch === '[') {
+      parenDepth += 1
+      end += 1
+      continue
+    }
+    if (ch === ')' || ch === ']') {
+      parenDepth = Math.max(0, parenDepth - 1)
+      end += 1
+      continue
+    }
+    if (ch === ',' || ch === ';' || ch === ':') {
+      const thousands = ch === ',' && isDigit(source[end - 1]) && isDigit(source[end + 1])
+      if (parenDepth > 0 || braceDepth > 0 || thousands) {
+        end += 1
         continue
       }
-      flush()
-      nodes.push({ type: char === '^' ? 'sup' : 'sub', tokens: mathTokens(script.text) })
-      i = script.next
+      break
+    }
+    if (ch === '|' || ch === '_' || ch === '^' || ch === '=' || ch === '+' || ch === '*' || ch === '<' || ch === '>') {
+      end += 1
       continue
     }
-    buffer += char
-    i += 1
+    if (ch === '-') {
+      // a hyphenated word ("K-means") is prose, not subtraction
+      if (end > start && isAsciiLetter(source[end - 1]) && isAsciiLetter(source[end + 1])) break
+      end += 1
+      continue
+    }
+    if (ch === '/') {
+      end += 1
+      continue
+    }
+    if (ch === ' ') {
+      const next = spaceContinues(source, end, source[end - 1], parenDepth > 0 || braceDepth > 0)
+      if (next < 0) break
+      end = next
+      continue
+    }
+    break
   }
-  flush()
-  return nodes
+  return end
 }
 
-/** Plain-text view of the tokenizer output (used for accessible labels). */
-function mathPlainText(value) {
-  return mathTokens(value).map(function flatten(token) {
-    return token.type === 'text' ? token.text : token.tokens.map(flatten).join('')
-  }).join('')
+/** Convert one math run to LaTeX; returns null when it is not safe. */
+function runToLatex(source, start, end) {
+  let trimmed = end
+  while (trimmed > start && /[\s=+\-*/^_,;:(<|]/.test(source[trimmed - 1])) trimmed -= 1
+  if (trimmed <= start) return null
+  const run = source.slice(start, trimmed)
+
+  let depth = 0
+  for (const ch of run) {
+    if (ch === '{') depth += 1
+    else if (ch === '}') {
+      depth -= 1
+      if (depth < 0) return null
+    }
+  }
+  if (depth !== 0) return null
+  if (/\\$/.test(run)) return null
+
+  let latex = ''
+  for (let i = 0; i < run.length; i += 1) {
+    const ch = run[i]
+    const combining = COMBINING[ch]
+    if (combining !== undefined) {
+      // attach to the previous single-letter atom: x̂ -> \hat{x}
+      const match = /([A-Za-z])$/u.exec(latex)
+      if (match) latex = `${latex.slice(0, -1)}\\${combining}{${match[1]}}`
+      continue
+    }
+    if (SUPERSCRIPT_DIGITS[ch] !== undefined) {
+      latex += `^${SUPERSCRIPT_DIGITS[ch]}`
+      continue
+    }
+    if (SUBSCRIPT_DIGITS[ch] !== undefined) {
+      latex += `_${SUBSCRIPT_DIGITS[ch]}`
+      continue
+    }
+    const command = GREEK[ch] ?? SYMBOLS[ch]
+    if (command !== undefined) {
+      latex += command
+      if (COMMAND_END.test(run[i + 1] ?? '')) latex += ' '
+      continue
+    }
+    latex += ch
+  }
+
+  // Normalize `x_i` / `H_out` into `x_{i}` / `H_{out}` so LaTeX groups the
+  // whole subscript, and leave already-braced scripts alone.
+  latex = latex.replace(/(?<![\\])([_^])(?![{^])([A-Za-z0-9]+)/g, '$1{$2}')
+
+  // A run must carry a math signal; otherwise "note (see)" would become math.
+  const hasCore = /[_^\\{}]/.test(latex)
+    || /[=+\-*/|<>]/.test(latex)
+    || /[0-9]/.test(latex)
+    || /[A-Za-z]\(/.test(latex)
+  if (!hasCore) return null
+  // "·" is also a Chinese list separator; never turn a lone one into $\cdot$.
+  if (/^\\cdot$/.test(latex) || /^\\ldots$/.test(latex)) return null
+  return { latex, end: trimmed }
+}
+
+/**
+ * Normalize deck prose to the KaTeX Markdown convention.
+ * @param value - authored deck text (LaTeX or legacy Unicode math)
+ * @returns Markdown whose math is inside `$...$`
+ */
+function toLatexMarkdown(value) {
+  const source = String(value ?? '')
+  if (source.includes('$')) return source
+  try {
+    let out = ''
+    let index = 0
+    while (index < source.length) {
+      if (!startsMath(source, index)) {
+        out += source[index]
+        index += 1
+        continue
+      }
+      // Pick up letters/digits glued to a symbol, plus an immediately adjacent
+      // opening bracket: "(0,0)" is one atom, not "($0,0)$".
+      let start = index
+      while (start > 0 && (isAsciiLetter(source[start - 1]) || isDigit(source[start - 1]))) {
+        if (out.endsWith('$')) break
+        out = out.slice(0, -1)
+        start -= 1
+      }
+      if (start > 0 && (source[start - 1] === '(' || source[start - 1] === '[') && !out.endsWith('$')) {
+        out = out.slice(0, -1)
+        start -= 1
+      }
+      let run = runToLatex(source, start, scanRun(source, start))
+      if (run !== null && (source[run.end] === ')' || source[run.end] === ']')) {
+        const expected = source[run.end] === ')' ? '(' : '['
+        if (run.latex.split(expected).length === run.latex.split(expected === '(' ? ')' : ']').length) {
+          run = { latex: `${run.latex}${source[run.end]}`, end: run.end + 1 }
+        }
+      }
+      if (run === null) {
+        out += source[index]
+        index += 1
+        continue
+      }
+      out += `$${run.latex}$`
+      index = run.end
+    }
+    return out
+  } catch {
+    return source
+  }
+}
+
+/**
+ * Deck text is agent-authored; `MarkdownText` would happily render an HTTP(S)
+ * image or link, which would fetch a remote URL from the local UI.  Drop image
+ * and link syntax before rendering, keeping only the visible text (the panel's
+ * "no external requests" property must survive Markdown support).
+ */
+function neutralizeMarkdownMedia(value) {
+  try {
+    return String(value ?? '')
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+  } catch {
+    return String(value ?? '')
+  }
+}
+
+const LATEX_TO_TEXT = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', varepsilon: 'ε', epsilon: 'ε',
+  zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ',
+  nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ',
+  varphi: 'φ', phi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
+  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ',
+  Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+  sum: 'Σ', prod: 'Π', int: '∫', infty: '∞', in: '∈', notin: '∉', times: '×',
+  cdot: '·', div: '÷', pm: '±', mp: '∓', le: '≤', ge: '≥', ne: '≠',
+  approx: '≈', equiv: '≡', sim: '∼', propto: '∝', to: '→',
+  Rightarrow: '⇒', leftrightarrow: '↔', cup: '∪', cap: '∩', subset: '⊂',
+  subseteq: '⊆', emptyset: '∅', forall: '∀', exists: '∃', neg: '¬', land: '∧',
+  lor: '∨', partial: '∂', nabla: '∇', lfloor: '⌊', rfloor: '⌋', lceil: '⌈',
+  rceil: '⌉', langle: '⟨', rangle: '⟩', cdots: '⋯', ldots: '…', odot: '⊙',
+  otimes: '⊗', hat: '', bar: '', overline: '', frac: '/', sqrt: '√',
+}
+
+/** Readable plain text for `aria-label` / titles that cannot host Markdown. */
+function latexPlainText(value) {
+  try {
+    return neutralizeMarkdownMedia(toLatexMarkdown(value))
+      .replace(/\$\$?/g, '')
+      .replace(/\\(?:left|right|big|Big|bigg|Bigg|quad|qquad|,|;|:|!)/g, ' ')
+      .replace(/\\([A-Za-z]+)/g, (match, name) => (LATEX_TO_TEXT[name] ?? name))
+      .replace(/[{}]/g, '')
+      .replace(/[_^]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  } catch {
+    return String(value ?? '')
+  }
 }
 
 /**
@@ -925,7 +1165,7 @@ function mathPlainText(value) {
  * Provides: withoutDeckAnswers, withoutDeckMistakes, withoutHiddenDeck,
  * withDeckVisible, readStored, MISTAKE_SEP, mistakeKey, splitMistakeKey,
  * normalizeHiddenDecks, normalizeMistakes, resolveQueueItem, mistakeRows,
- * formatTime, fetchDecks.
+ * formatTime, deckFingerprint, diffDecks, refreshSummary, fetchDecks.
  * Requires: STORAGE_KEY (base.js).
  */
 
@@ -1034,6 +1274,43 @@ function formatTime(ts) {
   }
 }
 
+/**
+ * Fingerprint one deck for change detection.  The Host sends whole decks, so a
+ * stable JSON string is enough to tell "same deck" from "same id, new content"
+ * (a `quiz_save_deck` overwrite) without a version field.
+ */
+function deckFingerprint(deck) {
+  return JSON.stringify(deck)
+}
+
+/**
+ * Compare two deck lists by id + content.
+ * @returns {{added: string[], updated: string[], removed: string[]}}
+ */
+function diffDecks(previous, next) {
+  const before = new Map((previous ?? []).map((deck) => [deck.id, deckFingerprint(deck)]))
+  const after = new Map((next ?? []).map((deck) => [deck.id, deckFingerprint(deck)]))
+  const added = [...after.keys()].filter((id) => !before.has(id))
+  const updated = [...after.keys()].filter((id) => before.has(id) && before.get(id) !== after.get(id))
+  const removed = [...before.keys()].filter((id) => !after.has(id))
+  return { added, updated, removed }
+}
+
+/** What the refresh status line reports: totals plus the delta since last load. */
+function refreshSummary(previous, next, at = Date.now()) {
+  const diff = diffDecks(previous, next)
+  const list = next ?? []
+  return {
+    at,
+    total: list.length,
+    userCount: list.filter((deck) => deck.source === 'user').length,
+    added: diff.added,
+    updated: diff.updated,
+    removed: diff.removed,
+    changed: diff.added.length + diff.updated.length + diff.removed.length,
+  }
+}
+
 async function fetchDecks(signal) {
   const response = await fetch(`${ENDPOINT}?ts=${Date.now()}`, {
     signal,
@@ -1062,25 +1339,47 @@ window.__ModuleLoader__.load({
  * prose goes through `MathText` so authored math renders instead of leaking
  * `_{...}` into the UI.
  *
- * Provides: renderMathTokens, MathText, GridIcon, CheckIcon, CrossIcon,
- * RefreshIcon, ChevronIcon, MatrixView, Inputs, OptionButton, optionState,
- * AnswerValue, VerdictCard, StepBlock, Solution, Notes.
- * Requires: h, React (factory prologue); mathTokens/mathPlainText (math.js);
- * cellText/letterOf (text.js); appendIcon? no.
+ * Provides: MarkdownText, markdownLabels, MathText, GridIcon, CheckIcon,
+ * CrossIcon, RefreshIcon, ChevronIcon, MatrixView, Inputs, OptionButton,
+ * optionState, AnswerValue, VerdictCard, StepBlock, Solution, Notes.
+ * Requires: h, React hooks (factory prologue); toLatexMarkdown/latexPlainText
+ * (math.js); cellText/letterOf (text.js).
  */
 
-    function renderMathTokens(tokens) {
-      return tokens.map((token, index) => (token.type === 'text'
-        ? token.text
-        : h(token.type, {
-          key: `m${index}`,
-          className: token.type === 'sup' ? 'dshq-math-sup' : 'dshq-math-sub',
-        }, renderMathTokens(token.tokens))))
+    /**
+     * DSH's KaTeX-backed Markdown primitive.  The module table provides it on
+     * every dsh web build; outside one (unit tests, an older host) the guarded
+     * require leaves it null and `MathText` falls back to plain text instead of
+     * crashing the panel.
+     */
+    let MarkdownText = null
+    try {
+      MarkdownText = require('@deepseek-ai/dsh-client-ui-primitives').MarkdownText ?? null
+    } catch {
+      MarkdownText = null
     }
 
-    /** Deck prose with `_{...}`/`^{...}`/`$...$` turned into real sup/sub text. */
-    function MathText({ text }) {
-      return h(React.Fragment, null, renderMathTokens(mathTokens(text)))
+    /** Localized chrome `MarkdownText` requires (code-fence copy + footnotes). */
+    function markdownLabels(t) {
+      return {
+        code: { copyLabel: t('markdown.copy'), copiedLabel: t('markdown.copied') },
+        footnotes: t('markdown.footnotes'),
+      }
+    }
+
+    /**
+     * Deck prose rendered as KaTeX Markdown.  Legacy decks (bare `_`/`^`,
+     * Unicode math) are normalized to `$...$` first; the only render path is
+     * `MarkdownText`, never raw HTML.
+     */
+    function MathText({ text, t }) {
+      const source = neutralizeMarkdownMedia(toLatexMarkdown(text))
+      const labels = useMemo(() => markdownLabels(t), [t])
+      if (MarkdownText === null) {
+        return h('div', { className: 'dshq-md is-fallback' }, source)
+      }
+      return h('div', { className: 'dshq-md' },
+        h(MarkdownText, { text: source, labels, variant: 'compact' }))
     }
 
     function GridIcon({ size = 20 }) {
@@ -1156,7 +1455,7 @@ window.__ModuleLoader__.load({
           : null
       const description = option.kind === 'matrix'
         ? `矩阵 ${option.matrix.map((row) => row.map(cellText).join(', ')).join('; ')}`
-        : mathPlainText(option.text)
+        : latexPlainText(option.text)
       return h('button', {
         type: 'button',
         className: classes.join(' '),
@@ -1166,9 +1465,9 @@ window.__ModuleLoader__.load({
         'aria-label': `${letterOf(index)}. ${description}`,
       },
       h('span', { className: 'dshq-opt-letter', 'aria-hidden': true }, letterOf(index)),
-      h('span', { className: 'dshq-opt-body' }, option.kind === 'matrix'
+      h('div', { className: 'dshq-opt-body' }, option.kind === 'matrix'
         ? h(MatrixView, { matrix: option.matrix, small: true })
-        : h('span', { className: 'dshq-opt-value' }, h(MathText, { text: option.text }))),
+        : h('div', { className: 'dshq-opt-value' }, h(MathText, { text: option.text, t }))),
       mark)
     }
 
@@ -1180,14 +1479,14 @@ window.__ModuleLoader__.load({
       return 'dim'
     }
 
-    function AnswerValue({ option, index, picked, good }) {
+    function AnswerValue({ option, index, picked, good, t }) {
       const letter = letterOf(index)
       const chipClass = `dshq-chip-letter${good ? ' is-good' : ''}`
       return h('div', { className: 'dshq-pick-value' },
         h('span', { className: chipClass }, letter),
         option.kind === 'matrix'
           ? h(MatrixView, { matrix: option.matrix, small: true })
-          : h('span', null, h(MathText, { text: option.text })))
+          : h('div', { className: 'dshq-pick-text' }, h(MathText, { text: option.text, t })))
     }
 
     function VerdictCard({ question, picked, t, onRetry }) {
@@ -1205,16 +1504,17 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dshq-answer-row' },
           h('div', { className: 'dshq-pick' },
             h('div', { className: 'dshq-pick-label' }, t('quiz.answerLabel')),
-            answerOption ? h(AnswerValue, { option: answerOption, index: question.answer, picked, good: true }) : null),
+            answerOption ? h(AnswerValue, { option: answerOption, index: question.answer, picked, good: true, t }) : null),
           pickedOption && !good ? h('div', { className: 'dshq-pick' },
             h('div', { className: 'dshq-pick-label' }, t('quiz.yourPick')),
-            h(AnswerValue, { option: pickedOption, index: picked, picked, good: false })) : null))
+            h(AnswerValue, { option: pickedOption, index: picked, picked, good: false, t })) : null))
     }
 
-    function StepBlock({ step }) {
+    function StepBlock({ step, t }) {
       return h('div', { className: 'dshq-step' },
-        h('h4', { className: 'dshq-step-title' }, h(MathText, { text: step.title })),
-        h('p', { className: 'dshq-step-body' }, h(MathText, { text: step.body })),
+        h('div', { className: 'dshq-step-title', role: 'heading', 'aria-level': 4 },
+          h(MathText, { text: step.title, t })),
+        h('div', { className: 'dshq-step-body' }, h(MathText, { text: step.body, t })),
         Array.isArray(step.matrices) && step.matrices.length > 0
           ? h('div', { className: 'dshq-step-matrices' }, step.matrices.map((entry, index) => h(MatrixView, {
             key: index, matrix: entry.matrix, label: entry.label, small: true,
@@ -1228,7 +1528,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dshq-verdict' }, h(GridIcon, { size: 15 }), h('span', null, t('aside.empty'))),
           question.formula ? h('div', { style: { marginTop: '10px' } },
             h('div', { className: 'dshq-section-title' }, t('aside.formula')),
-            h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula }))) : null,
+            h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula, t }))) : null,
           h('p', { className: 'dshq-hint', style: { margin: '10px 0 0' } }, t('quiz.pickHint')))
       }
       const diagnostics = question.options
@@ -1238,13 +1538,13 @@ window.__ModuleLoader__.load({
         h(VerdictCard, { question, picked, t, onRetry }),
         question.formula ? h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.formula')),
-          h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula }))) : null,
+          h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula, t }))) : null,
         h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.steps')),
-          question.steps.map((step, index) => h(StepBlock, { key: index, step }))),
+          question.steps.map((step, index) => h(StepBlock, { key: index, step, t }))),
         question.pitfall ? h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.pitfall')),
-          h('p', { className: 'dshq-step-body' }, h(MathText, { text: question.pitfall }))) : null,
+          h('div', { className: 'dshq-step-body' }, h(MathText, { text: question.pitfall, t }))) : null,
         diagnostics.length > 0 ? h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.diagnostics')),
           h('div', { className: 'dshq-diagnostics' }, diagnostics.map((entry) => h('div', {
@@ -1252,7 +1552,7 @@ window.__ModuleLoader__.load({
             className: `dshq-diagnostic${entry.index === picked ? ' is-picked' : ''}`,
           },
           h('span', { className: 'dshq-chip-letter' }, letterOf(entry.index)),
-          h('span', null, h(MathText, { text: entry.option.note })))))) : null)
+          h('div', { className: 'dshq-diagnostic-note' }, h(MathText, { text: entry.option.note, t })))))) : null)
     }
 
     function Notes({ notes, t }) {
@@ -1260,8 +1560,9 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'dshq-empty' }, h('h2', null, t('aside.notesTitle')), h('p', null, t('aside.notesEmpty')))
       }
       return h(React.Fragment, null, notes.map((note, index) => h('div', { key: index, className: 'dshq-card dshq-note-card' },
-        h('h3', { className: 'dshq-note-title' }, h(MathText, { text: note.title })),
-        h('p', { className: 'dshq-note-body' }, h(MathText, { text: note.body })))))
+        h('div', { className: 'dshq-note-title', role: 'heading', 'aria-level': 3 },
+          h(MathText, { text: note.title, t })),
+        h('div', { className: 'dshq-note-body' }, h(MathText, { text: note.body, t })))))
     }
 
 /**
@@ -1308,7 +1609,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'dshq-mistake-badge' }, t('mistakes.wrongTimes', { n: rec.wrong || 1 })),
           mastered ? h('span', { className: 'dshq-mistake-done' }, t('mistakes.filter.mastered')) : null),
         question
-          ? h('p', { className: 'dshq-mistake-prompt' }, h(MathText, { text: question.prompt }))
+          ? h('div', { className: 'dshq-mistake-prompt' }, h(MathText, { text: question.prompt, t }))
           : h('p', { className: 'dshq-mistake-prompt' }, t('mistakes.missingDeck')),
         question
           ? h('div', { className: 'dshq-mistake-meta' },
@@ -1423,10 +1724,16 @@ window.__ModuleLoader__.load({
       const [refreshing, setRefreshing] = useState(false)
       const [removing, setRemoving] = useState(null)
       const [actionError, setActionError] = useState(null)
+      const [refreshReport, setRefreshReport] = useState(null)
+      const [lastRefreshAt, setLastRefreshAt] = useState(null)
       const mainRef = useRef(null)
       const asideRef = useRef(null)
+      // Last loaded deck list, so a refresh can report what actually changed
+      // without reading state inside an updater.
+      const decksRef = useRef([])
 
-      const load = useCallback(async (signal) => {
+      const load = useCallback(async (signal, options = {}) => {
+        const announce = options.announce === true
         setRefreshing(true)
         try {
           const data = await fetchDecks(signal)
@@ -1434,23 +1741,40 @@ window.__ModuleLoader__.load({
             if (left.source !== right.source) return left.source === 'user' ? -1 : 1
             return String(left.id).localeCompare(String(right.id))
           })
+          const report = refreshSummary(decksRef.current, ordered)
+          decksRef.current = ordered
           setSnapshot({ status: 'ready', decks: ordered, errors: Array.isArray(data.errors) ? data.errors : [] })
+          setLastRefreshAt(report.at)
+          if (announce) setRefreshReport(report)
+          if (Array.isArray(data.errors) && data.errors.length === 0) setActionError(null)
         } catch (error) {
           if (error && error.name === 'AbortError') return
           const message = error instanceof Error ? error.message : String(error)
           setSnapshot((previous) => (previous.decks.length > 0
             ? { ...previous, errors: [message] }
             : { status: 'error', decks: [], errors: [message], message }))
+          if (announce) setActionError(`${t('refresh.failed')}: ${message}`)
         } finally {
           setRefreshing(false)
         }
-      }, [])
+      }, [t])
 
       useEffect(() => {
         const controller = new AbortController()
         load(controller.signal)
         return () => controller.abort()
       }, [load])
+
+      useEffect(() => {
+        decksRef.current = snapshot.decks
+      }, [snapshot.decks])
+
+      // The success line is transient; the "last refreshed" time stays visible.
+      useEffect(() => {
+        if (refreshReport === null) return undefined
+        const timer = setTimeout(() => setRefreshReport(null), 6000)
+        return () => clearTimeout(timer)
+      }, [refreshReport])
 
       const decks = snapshot.decks
       // Hide is a bundled-deck feature; a stale id left in localStorage must not
@@ -1706,7 +2030,7 @@ window.__ModuleLoader__.load({
         navigateTo(Math.min(queue.index + 1, queue.items.length - 1))
       }
 
-      const refresh = () => { load() }
+      const refresh = () => { load(undefined, { announce: true }) }
 
       function hideDeck(deck) {
         if (!deck || deck.source !== 'bundled') return
@@ -1848,15 +2172,15 @@ window.__ModuleLoader__.load({
                 scoreChip('wrong', 'is-bad', h(CrossIcon, { size: 12 }), `${activeWrong}`),
                 scoreChip('rate', '', null, `${t('stats.rate')} ${activeAccuracy}%`),
               ],
-            snapshot.errors.length > 0
-              ? h('span', {
-                className: 'dshq-score-chip',
-                title: snapshot.errors.join('\n'),
-                style: { color: 'var(--dsw-alias-state-error-primary)' },
-              }, `${t('app.deckDiagnostics')} ${snapshot.errors.length}`)
+            lastRefreshAt
+              ? h('span', { className: 'dshq-last-refresh' }, t('refresh.lastAt', { time: formatTime(lastRefreshAt) }))
               : null),
           h('button', {
-            type: 'button', className: 'dshq-button', onClick: refresh, disabled: refreshing,
+            type: 'button',
+            className: 'dshq-button',
+            onClick: refresh,
+            disabled: refreshing,
+            'aria-busy': refreshing ? 'true' : undefined,
           }, h(RefreshIcon), refreshing ? t('app.refreshing') : t('app.refresh'))))
 
       if (snapshot.status === 'loading') {
@@ -1985,14 +2309,14 @@ window.__ModuleLoader__.load({
                 question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
                 question.topic ? h('span', { className: 'dshq-topic' }, question.topic) : null,
                 queue && practiceDeck ? h('span', { className: 'dshq-mistake-deck' }, practiceDeck.title) : null),
-              h('p', { className: 'dshq-stem' }, h(MathText, { text: question.prompt })),
+              h('div', { className: 'dshq-stem' }, h(MathText, { text: question.prompt, t })),
               Array.isArray(question.inputs) && question.inputs.length > 0
                 ? h(Inputs, { inputs: question.inputs })
                 : null,
               question.conditions
                 ? h('div', { className: 'dshq-conditions' },
                   h('span', { className: 'dshq-cond-label' }, t('quiz.conditions')),
-                  h('span', null, h(MathText, { text: question.conditions })))
+                  h('div', { className: 'dshq-cond-value' }, h(MathText, { text: question.conditions, t })))
                 : null,
               h('div', { className: 'dshq-options' }, question.options.map((option, index) => h(OptionButton, {
                 key: index,
@@ -2075,14 +2399,42 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dshq-kbd-hint' },
               h('span', { className: 'dshq-hint' }, t('quiz.keyboardHint')))))
 
-      const actionBanner = actionError
-        ? h('div', { className: 'dshq-alert', role: 'alert' },
-          h('span', null, actionError),
-          h('button', { type: 'button', className: 'dshq-button', onClick: () => setActionError(null) },
-            t('app.dismiss')))
+      // Host diagnostics and failed refreshes/deletes are visible, not a
+      // hover-only chip: one alert region with a retry action.
+      const problemLines = [
+        ...(actionError ? [actionError] : []),
+        ...snapshot.errors,
+      ].filter((line) => typeof line === 'string' && line !== '')
+      const alertBanner = problemLines.length > 0
+        ? h('div', { className: 'dshq-alert', role: 'alert', 'aria-live': 'assertive' },
+          h('div', { className: 'dshq-alert-body' },
+            h('strong', { className: 'dshq-alert-title' }, t('refresh.failed')),
+            problemLines.slice(0, 3).map((line, index) => h('div', {
+              key: `e${index}`, className: 'dshq-alert-line',
+            }, line)),
+            problemLines.length > 3
+              ? h('div', { className: 'dshq-alert-line' }, `…+${problemLines.length - 3}`)
+              : null),
+          h('button', {
+            type: 'button', className: 'dshq-button', onClick: refresh, disabled: refreshing,
+          }, t('refresh.retry')))
         : null
 
-      return h('div', { className: 'dshq-page' }, header, actionBanner,
+      // Honest refresh feedback: totals + what changed since the previous load.
+      const refreshStatus = refreshReport
+        ? h('div', { className: 'dshq-refresh-status', role: 'status', 'aria-live': 'polite' },
+          refreshReport.changed === 0
+            ? `${t('refresh.noChange')} · ${t('refresh.lastAt', { time: formatTime(refreshReport.at) })}`
+            : [
+              t('refresh.result', { total: refreshReport.total, users: refreshReport.userCount }),
+              refreshReport.added.length > 0 ? t('refresh.added', { n: refreshReport.added.length }) : null,
+              refreshReport.updated.length > 0 ? t('refresh.updated', { n: refreshReport.updated.length }) : null,
+              refreshReport.removed.length > 0 ? t('refresh.removed', { n: refreshReport.removed.length }) : null,
+              t('refresh.lastAt', { time: formatTime(refreshReport.at) }),
+            ].filter(Boolean).join(' · '))
+        : null
+
+      return h('div', { className: 'dshq-page' }, header, alertBanner, refreshStatus,
         h('div', { className: 'dshq-layout' }, rail, main, aside))
     }
 

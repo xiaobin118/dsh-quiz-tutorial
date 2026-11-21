@@ -24,10 +24,16 @@
       const [refreshing, setRefreshing] = useState(false)
       const [removing, setRemoving] = useState(null)
       const [actionError, setActionError] = useState(null)
+      const [refreshReport, setRefreshReport] = useState(null)
+      const [lastRefreshAt, setLastRefreshAt] = useState(null)
       const mainRef = useRef(null)
       const asideRef = useRef(null)
+      // Last loaded deck list, so a refresh can report what actually changed
+      // without reading state inside an updater.
+      const decksRef = useRef([])
 
-      const load = useCallback(async (signal) => {
+      const load = useCallback(async (signal, options = {}) => {
+        const announce = options.announce === true
         setRefreshing(true)
         try {
           const data = await fetchDecks(signal)
@@ -35,23 +41,40 @@
             if (left.source !== right.source) return left.source === 'user' ? -1 : 1
             return String(left.id).localeCompare(String(right.id))
           })
+          const report = refreshSummary(decksRef.current, ordered)
+          decksRef.current = ordered
           setSnapshot({ status: 'ready', decks: ordered, errors: Array.isArray(data.errors) ? data.errors : [] })
+          setLastRefreshAt(report.at)
+          if (announce) setRefreshReport(report)
+          if (Array.isArray(data.errors) && data.errors.length === 0) setActionError(null)
         } catch (error) {
           if (error && error.name === 'AbortError') return
           const message = error instanceof Error ? error.message : String(error)
           setSnapshot((previous) => (previous.decks.length > 0
             ? { ...previous, errors: [message] }
             : { status: 'error', decks: [], errors: [message], message }))
+          if (announce) setActionError(`${t('refresh.failed')}: ${message}`)
         } finally {
           setRefreshing(false)
         }
-      }, [])
+      }, [t])
 
       useEffect(() => {
         const controller = new AbortController()
         load(controller.signal)
         return () => controller.abort()
       }, [load])
+
+      useEffect(() => {
+        decksRef.current = snapshot.decks
+      }, [snapshot.decks])
+
+      // The success line is transient; the "last refreshed" time stays visible.
+      useEffect(() => {
+        if (refreshReport === null) return undefined
+        const timer = setTimeout(() => setRefreshReport(null), 6000)
+        return () => clearTimeout(timer)
+      }, [refreshReport])
 
       const decks = snapshot.decks
       // Hide is a bundled-deck feature; a stale id left in localStorage must not
@@ -307,7 +330,7 @@
         navigateTo(Math.min(queue.index + 1, queue.items.length - 1))
       }
 
-      const refresh = () => { load() }
+      const refresh = () => { load(undefined, { announce: true }) }
 
       function hideDeck(deck) {
         if (!deck || deck.source !== 'bundled') return
@@ -449,15 +472,15 @@
                 scoreChip('wrong', 'is-bad', h(CrossIcon, { size: 12 }), `${activeWrong}`),
                 scoreChip('rate', '', null, `${t('stats.rate')} ${activeAccuracy}%`),
               ],
-            snapshot.errors.length > 0
-              ? h('span', {
-                className: 'dshq-score-chip',
-                title: snapshot.errors.join('\n'),
-                style: { color: 'var(--dsw-alias-state-error-primary)' },
-              }, `${t('app.deckDiagnostics')} ${snapshot.errors.length}`)
+            lastRefreshAt
+              ? h('span', { className: 'dshq-last-refresh' }, t('refresh.lastAt', { time: formatTime(lastRefreshAt) }))
               : null),
           h('button', {
-            type: 'button', className: 'dshq-button', onClick: refresh, disabled: refreshing,
+            type: 'button',
+            className: 'dshq-button',
+            onClick: refresh,
+            disabled: refreshing,
+            'aria-busy': refreshing ? 'true' : undefined,
           }, h(RefreshIcon), refreshing ? t('app.refreshing') : t('app.refresh'))))
 
       if (snapshot.status === 'loading') {
@@ -586,14 +609,14 @@
                 question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
                 question.topic ? h('span', { className: 'dshq-topic' }, question.topic) : null,
                 queue && practiceDeck ? h('span', { className: 'dshq-mistake-deck' }, practiceDeck.title) : null),
-              h('p', { className: 'dshq-stem' }, h(MathText, { text: question.prompt })),
+              h('div', { className: 'dshq-stem' }, h(MathText, { text: question.prompt, t })),
               Array.isArray(question.inputs) && question.inputs.length > 0
                 ? h(Inputs, { inputs: question.inputs })
                 : null,
               question.conditions
                 ? h('div', { className: 'dshq-conditions' },
                   h('span', { className: 'dshq-cond-label' }, t('quiz.conditions')),
-                  h('span', null, h(MathText, { text: question.conditions })))
+                  h('div', { className: 'dshq-cond-value' }, h(MathText, { text: question.conditions, t })))
                 : null,
               h('div', { className: 'dshq-options' }, question.options.map((option, index) => h(OptionButton, {
                 key: index,
@@ -676,14 +699,42 @@
             h('div', { className: 'dshq-kbd-hint' },
               h('span', { className: 'dshq-hint' }, t('quiz.keyboardHint')))))
 
-      const actionBanner = actionError
-        ? h('div', { className: 'dshq-alert', role: 'alert' },
-          h('span', null, actionError),
-          h('button', { type: 'button', className: 'dshq-button', onClick: () => setActionError(null) },
-            t('app.dismiss')))
+      // Host diagnostics and failed refreshes/deletes are visible, not a
+      // hover-only chip: one alert region with a retry action.
+      const problemLines = [
+        ...(actionError ? [actionError] : []),
+        ...snapshot.errors,
+      ].filter((line) => typeof line === 'string' && line !== '')
+      const alertBanner = problemLines.length > 0
+        ? h('div', { className: 'dshq-alert', role: 'alert', 'aria-live': 'assertive' },
+          h('div', { className: 'dshq-alert-body' },
+            h('strong', { className: 'dshq-alert-title' }, t('refresh.failed')),
+            problemLines.slice(0, 3).map((line, index) => h('div', {
+              key: `e${index}`, className: 'dshq-alert-line',
+            }, line)),
+            problemLines.length > 3
+              ? h('div', { className: 'dshq-alert-line' }, `…+${problemLines.length - 3}`)
+              : null),
+          h('button', {
+            type: 'button', className: 'dshq-button', onClick: refresh, disabled: refreshing,
+          }, t('refresh.retry')))
         : null
 
-      return h('div', { className: 'dshq-page' }, header, actionBanner,
+      // Honest refresh feedback: totals + what changed since the previous load.
+      const refreshStatus = refreshReport
+        ? h('div', { className: 'dshq-refresh-status', role: 'status', 'aria-live': 'polite' },
+          refreshReport.changed === 0
+            ? `${t('refresh.noChange')} · ${t('refresh.lastAt', { time: formatTime(refreshReport.at) })}`
+            : [
+              t('refresh.result', { total: refreshReport.total, users: refreshReport.userCount }),
+              refreshReport.added.length > 0 ? t('refresh.added', { n: refreshReport.added.length }) : null,
+              refreshReport.updated.length > 0 ? t('refresh.updated', { n: refreshReport.updated.length }) : null,
+              refreshReport.removed.length > 0 ? t('refresh.removed', { n: refreshReport.removed.length }) : null,
+              t('refresh.lastAt', { time: formatTime(refreshReport.at) }),
+            ].filter(Boolean).join(' · '))
+        : null
+
+      return h('div', { className: 'dshq-page' }, header, alertBanner, refreshStatus,
         h('div', { className: 'dshq-layout' }, rail, main, aside))
     }
 

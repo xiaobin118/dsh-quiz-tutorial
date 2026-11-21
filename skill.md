@@ -28,18 +28,28 @@
 - `deck.notes` 放 3–6 张速查卡（公式、易错清单），不要复制整段讲义。
 - 题集标题/学科/描述用中文；`id` 用小写 kebab-case。
 
-## 3. 公式怎么写
+## 3. 公式必须写 LaTeX（硬性要求）
 
-「刷题场」用轻量渲染器显示题面、解析和速查卡里的公式（不是 Markdown，也不是完整 LaTeX）：
+「刷题场」用 DSH 的 KaTeX Markdown 渲染器显示题面、解析和速查卡。**所有数学必须写成 LaTeX 并用
+`$...$`（行内）或 `$$...$$`（独立公式）包起来**；不要写 Unicode 数学，也不要写裸的 `_` / `^` 上下标。
 
-- 简单公式直接用 Unicode：`H_out`、`σ_k²`、`⌊(H + 2P − K)/S⌋ + 1`、`x₁`；
-- 需要上下标时用 `_{...}` / `^{...}`，或简写 `H_out`、`x^2`、`e^−2.1115`；
-- 也可以用 `$...$` / `$$...$$` 把公式包起来（定界符会被去掉）；
-- 常见命令可用：`\frac{a}{b}`、`\sqrt{x}`、`\sum` `\prod` `\int`、`\alpha` `\beta` `\mu`
-  `\sigma` `\Sigma`、`\cdot` `\times` `\le` `\ge` `\ne` `\approx` `\in` `\to` `\infty`；
-  `\text{...}` 里的内容按普通文本输出；
-- **不要**写 `\begin{...}`/`\end{...}` 环境、矩阵/对齐排版、HTML、Markdown 链接或外部图片：
-  这些不会被渲染，只会变成难读的原文。
+必须这样写：
+
+- 行内：`$\mu_k$`、`$\sigma_k^2$`、`$\hat{x}_i$`、`$H_{out} = \lfloor(H + 2P - K)/S\rfloor + 1$`；
+- 独立公式：`$$J = \sum_{k=1}^{K} \sum_{x \in C_k} \|x - \mu_k\|^2$$`；
+- 分数 `$\frac{a}{b}$`、根号 `$\sqrt{x}$`、求和 `$\sum_{k=1}^{K}$`、范数 `$\|x - \mu_k\|^2$`；
+- 希腊字母与运算符一律用命令：`\alpha \beta \gamma \pi \sigma \mu \Sigma`、`\times \cdot \le \ge \ne \approx \in \to \infty`；
+- 矩阵可以写成 `$\begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}$`，或用 `inputs` 的 `matrix` 字段。
+
+**禁止**（会被判为不合格的题集）：
+
+- 用 Unicode 数学字符代替 LaTeX：`Σ_{k=1}^{K}`、`μ_k`、`σ²`、`x̂`、`∈`、`×`、`≤`、`⌊…⌋`；
+- 在 `$...$` 之外写 `_` / `^`（`H_out`、`x^2` 必须写成 `$H_{out}$`、`$x^2$`）；
+- 用 HTML、Markdown 图片或链接代替公式（渲染器会丢弃远程图片/链接，也不会执行 HTML）；
+- 把整段讲义塞进公式里——公式只放数学，中文说明留在正文。
+
+旧题集里的 Unicode 数学会在显示时尽量自动转换，但**新题集必须直接写 LaTeX**：转换只是兼容层，
+不是出题规范。
 
 ## 4. 保存并告诉用户
 
@@ -61,9 +71,9 @@
   "id": "ml-conv-1",
   "title": "单通道卷积入门",
   "subject": "机器学习",
-  "description": "一道完整可算的 2×2 卷积示例。",
+  "description": "一道完整可算的 $2\\times2$ 卷积示例。",
   "notes": [
-    { "title": "卷积输出尺寸", "body": "H_out = ⌊(H + 2P − K)/S⌋ + 1" }
+    { "title": "卷积输出尺寸", "body": "$H_{out} = \\lfloor(H + 2P - K)/S\\rfloor + 1$" }
   ],
   "questions": [
     {
@@ -79,25 +89,25 @@
       "conditions": "P=0，S=1，不使用激活函数。",
       "options": [
         { "kind": "matrix", "matrix": [[2]] },
-        { "kind": "matrix", "matrix": [[3]], "note": "漏加偏置 b = −1" },
+        { "kind": "matrix", "matrix": [[3]], "note": "漏加偏置 $b = -1$" },
         { "kind": "matrix", "matrix": [[4]], "note": "偏置符号弄反：3 + 1 = 4" }
       ],
       "answer": 0,
-      "formula": "H_out = ⌊(H + 2P − K)/S⌋ + 1",
+      "formula": "$H_{out} = \\lfloor(H + 2P - K)/S\\rfloor + 1$",
       "pitfall": "偏置在卷积之后加，且只加一次。",
       "steps": [
         {
           "title": "第 1 步 · 输出尺寸",
-          "body": "⌊(2 − 2)/1⌋ + 1 = 1，所以输出是 1×1。"
+          "body": "$\\lfloor(2 - 2)/1\\rfloor + 1 = 1$，所以输出是 $1\\times1$。"
         },
         {
           "title": "第 2 步 · 代入",
-          "body": "1×1 + 0×(−1) + 0×0 + 1×2 = 3；再加 b = −1，得到 2。",
+          "body": "$1\\times1 + 0\\times(-1) + 0\\times0 + 1\\times2 = 3$；再加 $b = -1$，得到 $2$。",
           "matrices": [{ "label": "卷积结果", "matrix": [[2]] }]
         },
         {
           "title": "第 3 步 · 验算",
-          "body": "3 + (−1) = 2，与所选答案一致；输出只有一个数，与 1×1 的推导一致。"
+          "body": "$3 + (-1) = 2$，与所选答案一致；输出只有一个数，与 $1\\times1$ 的推导一致。"
         }
       ]
     }

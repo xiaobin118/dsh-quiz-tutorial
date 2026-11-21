@@ -250,6 +250,45 @@ test('tool failures carry a stable code, matching the documented shape', async (
   }
 })
 
+test('save -> refresh sees the deck; an id collision updates instead of duplicating', async () => {
+  const dirs = tempDirs()
+  try {
+    const stub = stubContext()
+    apply(stub.ctx, { bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    const list = stub.tools[0]
+    const save = stub.tools[1]
+    const get = async () => {
+      const res = makeRes()
+      await stub.routes[0].handler(makeReq({ headers: { host: 'localhost' } }), res)
+      assert.equal(res.status, 200)
+      return res.json()
+    }
+
+    // The reported bug: the agent saved a deck but a refresh did not show it.
+    assert.deepEqual((await get()).decks, [])
+    const first = await save.execute({ deck: JSON.stringify({ ...sampleDeck('fresh'), title: '第一版' }) })
+    assert.equal(first.ok, true, first.message)
+    const afterSave = await get()
+    assert.deepEqual(afterSave.decks.map((deck) => deck.id), ['fresh'])
+    assert.equal(afterSave.decks[0].title, '第一版')
+    assert.equal(afterSave.decks[0].source, 'user')
+    assert.deepEqual(afterSave.errors, [])
+
+    // An id collision is an overwrite: same count, new content.
+    const second = await save.execute({ deck: JSON.stringify({ ...sampleDeck('fresh'), title: '第二版' }) })
+    assert.equal(second.ok, true, second.message)
+    const afterOverwrite = await get()
+    assert.equal(afterOverwrite.decks.length, 1)
+    assert.equal(afterOverwrite.decks[0].title, '第二版')
+
+    // The tool's list view agrees with the route.
+    const listed = await list.execute()
+    assert.deepEqual(listed.decks.map((deck) => deck.title), ['第二版'])
+  } finally {
+    dirs.cleanup()
+  }
+})
+
 test('apply() surfaces the size contract as a failed save, not a success', async () => {
   const dirs = tempDirs()
   try {

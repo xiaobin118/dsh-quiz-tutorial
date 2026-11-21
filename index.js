@@ -102,8 +102,9 @@ const DECK_SCHEMA_HINT = `deck JSON 结构（必填项见括号）：
   }]
 }
 规则：每题 options 2–6 个、answer 是 0 基下标；矩阵必须是矩形数字数组；所有答案与中间量必须真实计算过，不许估算。
-公式写法：直接用 Unicode（σ_k²、⌊(H + 2P − K)/S⌋ + 1）或用 $...$ 包住；渲染器支持 _{...}/^{...} 与常见 LaTeX 命令（\\frac、\\sum、\\alpha…），
-不支持完整 LaTeX 排版，不要写 \\begin{} / \\end{} 环境。
+公式写法（硬性）：所有数学必须写成 LaTeX 并用 $...$ 包住（独立公式用 $$...$$），例如 $\\mu_k$、$\\sigma_k^2$、$\\hat{x}_i$、
+$H_{out} = \\lfloor(H + 2P - K)/S\\rfloor + 1$、$$J = \\sum_{k=1}^{K} \\|x - \\mu_k\\|^2$$。
+不要用 Unicode 数学符号（μ、σ²、Σ_{k}、×）代替 LaTeX，也不要在 $...$ 外写裸 _ / ^；渲染器是 KaTeX，不执行 HTML、不加载远程图片/链接。
 单套题集序列化后上限 512 KiB，超过会在写入前被拒绝。`
 
 function isRecord(value) {

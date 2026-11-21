@@ -82,14 +82,24 @@ const CSS = `
   grid-template-columns: 212px minmax(0, 1fr) 384px;
 }
 .dshq-alert {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   margin: 8px 14px 0; padding: 8px 12px;
   border-radius: 9px; font-size: 12.5px; line-height: 1.5;
   color: var(--dsw-alias-state-error-primary);
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
 }
-.dshq-alert > span { flex: 1 1 auto; min-width: 0; }
+.dshq-alert-body { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.dshq-alert-title { display: block; margin-bottom: 2px; }
+.dshq-alert-line { font-size: 11.5px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
+.dshq-refresh-status {
+  margin: 8px 14px 0; padding: 6px 12px;
+  border-radius: 9px; font-size: 12px; line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-fill-l1);
+  border: 1px solid var(--dsw-alias-border-l1);
+}
+.dshq-last-refresh { font-size: 10.5px; color: var(--dsw-alias-label-tertiary); white-space: nowrap; }
 .dshq-rail {
   min-height: 0; overflow: auto;
   padding: 14px 10px 18px;
@@ -212,7 +222,7 @@ const CSS = `
 .dshq-option.is-picked-correct .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-state-success-primary); border-color: transparent; }
 .dshq-option.is-picked-wrong .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-state-error-primary); border-color: transparent; }
 .dshq-opt-body { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; }
-.dshq-opt-value { font-size: 12.5px; }
+.dshq-opt-value { min-width: 0; font-size: 12.5px; text-align: left; }
 .dshq-opt-mark { flex: 0 0 auto; display: inline-flex; }
 .dshq-opt-mark.is-good { color: var(--dsw-alias-state-success-primary); }
 .dshq-opt-mark.is-bad { color: var(--dsw-alias-state-error-primary); }
@@ -301,11 +311,23 @@ const CSS = `
 .dshq-empty h2 { margin: 0; font-size: 15px; color: var(--dsw-alias-label-primary); }
 .dshq-empty p { margin: 0; max-width: 46ch; font-size: 12.5px; }
 .dshq-loader { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 60px 20px; color: var(--dsw-alias-label-secondary); }
-.dshq-math-sup, .dshq-math-sub {
-  font-size: .72em; line-height: 0;
+/* Deck prose is rendered by DSH's Markdown/KaTeX primitive inside .dshq-md.
+   Zero the first/last block margins so existing card spacing is preserved,
+   and let long display math scroll instead of breaking the layout. */
+.dshq-md { min-width: 0; max-width: 100%; }
+.dshq-md > div { margin: 0; }
+.dshq-md > div > :first-child { margin-top: 0; }
+.dshq-md > div > :last-child { margin-bottom: 0; }
+.dshq-md .katex-display {
+  margin: 6px 0; padding: 2px 0 4px;
+  overflow-x: auto; overflow-y: hidden;
 }
-.dshq-math-sup { vertical-align: super; }
-.dshq-math-sub { vertical-align: sub; }
+.dshq-md .katex { font-size: 1.02em; }
+.dshq-md.is-fallback { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dshq-condition .dshq-md, .dshq-cond-value .dshq-md { display: inline; }
+.dshq-opt-value .dshq-md > div { display: inline-block; }
+.dshq-pick-text .dshq-md > div { display: inline-block; }
+.dshq-diagnostic-note { min-width: 0; }
 .dshq-loader-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-brand-primary); animation: dshq-pulse 1s infinite ease-in-out; }
 .dshq-loader-dot:nth-child(2) { animation-delay: .15s; }
 .dshq-loader-dot:nth-child(3) { animation-delay: .3s; }

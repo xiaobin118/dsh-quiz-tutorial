@@ -19,8 +19,9 @@ Agent 出题。
 - **题集**：左侧列表切换；内置 CNN / 机器学习概念题，也可以按任意学科生成新题集。
 - **题目 + 解析**：矩阵输入、2–6 个选项；作答后右侧展开正确答案、用到的公式、
   **带中间矩阵的逐步手算**、易错点、每个错误选项的诊断。
-- **公式渲染**：题面/解析/速查卡里的 `$...$`、`_{...}`/`^{...}`、`\frac`、`\sum`、希腊字母
-  等会渲染成上下标与 Unicode 符号（轻量渲染器，不执行 HTML、不加载外部资源）。
+- **公式渲染**：题面/解析/速查卡由 DSH 的 KaTeX Markdown 渲染器显示——用 `$...$` / `$$...$$`
+  写 LaTeX（`\frac`、`\sum`、`\mu_k`、`\hat{x}`、`\sigma^2`、`bmatrix` 等）；不执行 HTML，
+  远程图片/链接会被丢弃，旧题集里的 Unicode 数学会自动转成 LaTeX 兼容显示。
 - **错题本**：答错自动收录（跨题集），支持筛选、看解析、重做、标记已订正、
   「重练全部未订正」队列；答对自动订正。
 - **`/skill dsh-quiz` 出题**：在输入框输入 `/skill dsh-quiz 主题`，Agent 会查重、
@@ -103,7 +104,8 @@ dsh plugin --profile web add github:xiaobin118/dsh-quiz-tutorial
 - 文件名必须是 `<id>.json`；与内置题集同 id 表示「用户覆盖版本」；
 - 单套题集序列化后 ≤ 512 KiB，保存前按字节检查，超限直接报错、不写文件；
 - 字段超长会报错而不是静默截断；题目 id 重复会报错而不是改名；
-- 公式用 Unicode 或 `$...$` + `_{...}`/`^{...}` 写，支持常见 LaTeX 命令，但不是完整 LaTeX。
+- 公式必须写 LaTeX 并用 `$...$`（行内）/ `$$...$$`（独立）包住；不要用 Unicode 数学符号或裸
+  `_`/`^`，新题集统一按 [docs/deck-format.md](docs/deck-format.md) 的 LaTeX 约定书写。
 
 完整字段、约束、校验规则与公式写法见 [docs/deck-format.md](docs/deck-format.md)；
 给 Agent 的出题规范见 [skill.md](skill.md)。
@@ -180,6 +182,14 @@ python3 tools/gen_decks.py --check   # 内置题集与生成脚本一致
 - 修正 `skill.md` / `docs/deck-format.md` 的示例（2×2 输入却写 4×4 输出 + 池化的矛盾），
   示例改为完整可算的 1×1 结果；内置题集 `ml-cnn` 的干扰项改为脚本计算；
 - 新增 `node:test` 回归测试与 CI（`npm run check`、`npm test`、生成脚本 `--check`）。
+
+### 未发布的后续修复（1.0.1 内）
+
+- 公式改用 DSH 的 KaTeX Markdown 渲染器（`MarkdownText`），题集按 LaTeX 书写；旧题集的 Unicode
+  数学在渲染时自动规范化，内置题集与生成脚本已迁移为显式 LaTeX；
+- 刷新按钮可见地报告结果：`已刷新：N 套题集（M 套用户题集） · 新增 X · 更新 Y`、无变化提示、
+  最近刷新时间；宿主诊断/刷新失败改为可见的 `role="alert"` 横幅并提供重试；
+- 修复 1.0.1 的打包遗漏（客户端源码、生成脚本与测试随包分发）与 reduced-motion CSS 层级错误。
 
 ## 贡献
 
