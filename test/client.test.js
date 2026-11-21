@@ -340,6 +340,35 @@ test('q1 CNN step labels and option matrices are KaTeX inputs, not raw $', () =>
   assert.ok(collectMathText(tree, MathText).some((p) => p.text.includes('bmatrix')))
 })
 
+test('display matrices use a block container; small matrices stay inline', () => {
+  const { MatrixView, Inputs, OptionButton, MathText } = client.exported.__test
+  const bodyProps = (tree) => collectMathText(tree, MathText).find((entry) => entry.text.includes('bmatrix'))
+  const identity = (key) => key
+
+  const display = bodyProps(MatrixView({ matrix: [[1, 2], [3, 4]], t: identity, display: true }))
+  assert.equal(display.inline, false, 'standalone input matrices must not use the inline container')
+  assert.ok(display.text.startsWith('$$'), 'display matrices use $$...$$')
+
+  const small = bodyProps(MatrixView({ matrix: [[2, 4], [4, 3]], small: true, t: identity }))
+  assert.equal(small.inline, true, 'option/step matrices stay inline')
+  assert.ok(small.text.startsWith('$') && !small.text.startsWith('$$'))
+
+  const fromInputs = bodyProps(MatrixView(findElement(Inputs({
+    t: identity, inputs: [{ label: 'X', matrix: [[1, 2], [3, 4]] }],
+  }), MatrixView).props))
+  assert.equal(fromInputs.inline, false, 'Inputs renders display matrices')
+
+  const optionMatrix = findElement(OptionButton({
+    option: { kind: 'matrix', matrix: [[2, 4], [4, 3]] },
+    index: 0, state: 'idle', disabled: false, onPick() {}, t: identity,
+  }), MatrixView)
+  assert.equal(optionMatrix.props.display, undefined)
+  assert.equal(bodyProps(MatrixView(optionMatrix.props)).inline, true, 'option matrices stay inline')
+
+  const bundle = readFileSync(join(ROOT, 'client.js'), 'utf8')
+  assert.match(bundle, /inline: display !== true/, 'the built bundle carries the block-container rule')
+})
+
 test('no deck-content field is rendered as raw text any more', () => {
   const sources = ['components.js', 'notebook.js', 'page.js']
     .map((file) => readFileSync(join(ROOT, 'client', 'src', file), 'utf8'))

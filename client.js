@@ -1455,7 +1455,7 @@ window.__ModuleLoader__.load({
           className: 'dshq-matrix-math',
           role: 'img',
           'aria-label': `矩阵 ${matrixToPlain(matrix)}`,
-        }, h(MathText, { text: source, t, inline: true })))
+        }, h(MathText, { text: source, t, inline: display !== true })))
     }
 
     function Inputs({ inputs, t }) {
@@ -2516,7 +2516,7 @@ window.__ModuleLoader__.load({
         // Test-only surface: `test/client.test.js` materializes the bundle with
         // a recording React stub and asserts every deck-content field reaches
         // MathText (matrix cells, input/step labels, topics, titles).
-        __test: { MathText, MatrixView, Inputs, matrixToLatex, matrixToPlain },
+        __test: { MathText, MatrixView, Inputs, OptionButton, StepBlock, matrixToLatex, matrixToPlain },
         apply(ctx) {
           ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-quiz: dictionaries')
           ctx.effect(() => injectStyles(), 'dsh-quiz: styles')

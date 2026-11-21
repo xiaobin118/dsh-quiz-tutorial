@@ -26,7 +26,7 @@
         // Test-only surface: `test/client.test.js` materializes the bundle with
         // a recording React stub and asserts every deck-content field reaches
         // MathText (matrix cells, input/step labels, topics, titles).
-        __test: { MathText, MatrixView, Inputs, matrixToLatex, matrixToPlain },
+        __test: { MathText, MatrixView, Inputs, OptionButton, StepBlock, matrixToLatex, matrixToPlain },
         apply(ctx) {
           ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-quiz: dictionaries')
           ctx.effect(() => injectStyles(), 'dsh-quiz: styles')

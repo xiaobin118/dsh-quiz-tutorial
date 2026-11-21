@@ -99,7 +99,7 @@
           className: 'dshq-matrix-math',
           role: 'img',
           'aria-label': `矩阵 ${matrixToPlain(matrix)}`,
-        }, h(MathText, { text: source, t, inline: true })))
+        }, h(MathText, { text: source, t, inline: display !== true })))
     }
 
     function Inputs({ inputs, t }) {
