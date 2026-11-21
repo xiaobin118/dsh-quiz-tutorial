@@ -18,7 +18,9 @@ dsh plugin --profile web add github:xiaobin118/dsh-quiz-tutorial
 
 The npm package name is `dsh-quiz-tutorial` (not published yet); install from GitHub for now.
 Restart `dsh web` once after installing (Host routes and the skill do not hot-reload), then refresh
-the browser and open **Quiz** in the sidebar.
+the browser and open **Quiz** in the sidebar. If you installed the earlier dev bundle `dsh-quiz`,
+remove it first (`dsh plugin --profile web remove dsh-quiz`) so two bundles do not claim the same
+`quiz` panel.
 
 ## What it does
 

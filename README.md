@@ -39,6 +39,9 @@ dsh plugin --profile web add github:xiaobin118/dsh-quiz-tutorial
 ```
 
 > 如果之后 npm 上架，可以改用 `dsh plugin --profile web add dsh-quiz-tutorial`。
+>
+> 如果装过早期的开发 bundle `dsh-quiz`，先移除它（`dsh plugin --profile web remove dsh-quiz`），
+> 避免两个 bundle 注册同一个 `quiz` 面板。
 
 装好后重启一次 `dsh web`（Host 侧的路由与技能不会热加载），刷新浏览器页面。
 打开左侧栏的 **刷题场**。
