@@ -28,7 +28,20 @@
 - `deck.notes` 放 3–6 张速查卡（公式、易错清单），不要复制整段讲义。
 - 题集标题/学科/描述用中文；`id` 用小写 kebab-case。
 
-## 3. 保存并告诉用户
+## 3. 公式怎么写
+
+「刷题场」用轻量渲染器显示题面、解析和速查卡里的公式（不是 Markdown，也不是完整 LaTeX）：
+
+- 简单公式直接用 Unicode：`H_out`、`σ_k²`、`⌊(H + 2P − K)/S⌋ + 1`、`x₁`；
+- 需要上下标时用 `_{...}` / `^{...}`，或简写 `H_out`、`x^2`、`e^−2.1115`；
+- 也可以用 `$...$` / `$$...$$` 把公式包起来（定界符会被去掉）；
+- 常见命令可用：`\frac{a}{b}`、`\sqrt{x}`、`\sum` `\prod` `\int`、`\alpha` `\beta` `\mu`
+  `\sigma` `\Sigma`、`\cdot` `\times` `\le` `\ge` `\ne` `\approx` `\in` `\to` `\infty`；
+  `\text{...}` 里的内容按普通文本输出；
+- **不要**写 `\begin{...}`/`\end{...}` 环境、矩阵/对齐排版、HTML、Markdown 链接或外部图片：
+  这些不会被渲染，只会变成难读的原文。
+
+## 4. 保存并告诉用户
 
 用 `quiz_save_deck` 保存完整题集 JSON 字符串。保存成功后告诉用户：
 
@@ -38,46 +51,53 @@
 
 不要声称已经替用户答过题；不要把未验证的数字写进题集。
 
-## 4. 题集 JSON 结构
+保存失败时按工具返回的错误改：常见原因是超过 512 KiB 上限、某个字段超过字符上限、
+题目 id 重复或 `answer` 越界——Host 会明确报错，不会静默截断或改名。
+
+## 5. 题集 JSON 结构
 
 ```json
 {
-  "id": "ml-cnn",
-  "title": "CNN 卷积 / 池化计算专项",
+  "id": "ml-conv-1",
+  "title": "单通道卷积入门",
   "subject": "机器学习",
-  "description": "10 道计算题，覆盖单通道、填充、步长、多通道、ReLU 与池化。",
+  "description": "一道完整可算的 2×2 卷积示例。",
   "notes": [
     { "title": "卷积输出尺寸", "body": "H_out = ⌊(H + 2P − K)/S⌋ + 1" }
   ],
   "questions": [
     {
       "id": "q1",
-      "topic": "单通道卷积 + 偏置 + 最大池化",
+      "topic": "单通道卷积 + 偏置",
       "level": "基础",
-      "prompt": "给定 X、K、b……最终输出矩阵是？",
+      "prompt": "给定 X、K、b，P=0、S=1、不使用激活函数。输出矩阵是？",
       "inputs": [
         { "label": "X", "matrix": [[1, 0], [0, 1]] },
         { "label": "K", "matrix": [[1, -1], [0, 2]] },
         { "label": "b", "scalar": -1 }
       ],
-      "conditions": "P=0，S=1；随后做 2×2、步长 2 的最大池化。",
+      "conditions": "P=0，S=1，不使用激活函数。",
       "options": [
-        { "kind": "matrix", "matrix": [[2, 4], [4, 3]] },
-        { "kind": "matrix", "matrix": [[3, 5], [5, 4]], "note": "漏加偏置 b=−1" },
-        { "kind": "text", "text": "448" }
+        { "kind": "matrix", "matrix": [[2]] },
+        { "kind": "matrix", "matrix": [[3]], "note": "漏加偏置 b = −1" },
+        { "kind": "matrix", "matrix": [[4]], "note": "偏置符号弄反：3 + 1 = 4" }
       ],
       "answer": 0,
-      "formula": "H_out = ⌊(H + 2P − K)/S⌋ + 1；最大池化取窗口最大值。",
-      "pitfall": "偏置在卷积之后、池化之前只加一次。",
+      "formula": "H_out = ⌊(H + 2P − K)/S⌋ + 1",
+      "pitfall": "偏置在卷积之后加，且只加一次。",
       "steps": [
         {
           "title": "第 1 步 · 输出尺寸",
-          "body": "⌊(5 − 2)/1⌋ + 1 = 4，所以卷积结果是 4×4。"
+          "body": "⌊(2 − 2)/1⌋ + 1 = 1，所以输出是 1×1。"
         },
         {
-          "title": "第 2 步 · 卷积",
-          "body": "左上角：1×1 + 0×(−1) + 0×0 + 1×2 = 3，再加 b=−1 得 2。",
-          "matrices": [{ "label": "卷积结果", "matrix": [[2, -1], [0, -1]] }]
+          "title": "第 2 步 · 代入",
+          "body": "1×1 + 0×(−1) + 0×0 + 1×2 = 3；再加 b = −1，得到 2。",
+          "matrices": [{ "label": "卷积结果", "matrix": [[2]] }]
+        },
+        {
+          "title": "第 3 步 · 验算",
+          "body": "3 + (−1) = 2，与所选答案一致；输出只有一个数，与 1×1 的推导一致。"
         }
       ]
     }
@@ -86,4 +106,6 @@
 ```
 
 字段约束：`options` 2–6 个；`answer` 是 0 基下标；矩阵必须是矩形数字数组；
-每题至少一个 `step`；`inputs` 每项只能是 `matrix` 或 `scalar` 之一。
+每题至少一个 `step`；`inputs` 每项只能是 `matrix` 或 `scalar` 之一；
+单套题集序列化后不超过 512 KiB；题目 id 在题集内唯一。完整约束见
+[docs/deck-format.md](docs/deck-format.md)。

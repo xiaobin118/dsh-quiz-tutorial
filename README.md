@@ -17,29 +17,35 @@ Agent 出题。
 ## 功能
 
 - **题集**：左侧列表切换；内置 CNN / 机器学习概念题，也可以按任意学科生成新题集。
-- **题目 + 解析**：矩阵输入、A–D 选项；作答后右侧展开正确答案、用到的公式、
+- **题目 + 解析**：矩阵输入、2–6 个选项；作答后右侧展开正确答案、用到的公式、
   **带中间矩阵的逐步手算**、易错点、每个错误选项的诊断。
+- **公式渲染**：题面/解析/速查卡里的 `$...$`、`_{...}`/`^{...}`、`\frac`、`\sum`、希腊字母
+  等会渲染成上下标与 Unicode 符号（轻量渲染器，不执行 HTML、不加载外部资源）。
 - **错题本**：答错自动收录（跨题集），支持筛选、看解析、重做、标记已订正、
   「重练全部未订正」队列；答对自动订正。
 - **`/skill dsh-quiz` 出题**：在输入框输入 `/skill dsh-quiz 主题`，Agent 会查重、
   自己把答案和中间量算对，再保存成题集。
-- **删除 / 隐藏题集**：自建题集卡片右上角 × 真正删除；内置题集 × 隐藏，列表底部可恢复。
+- **删除 / 隐藏题集**：自建题集卡片右上角 × 真正删除（同时清掉该题集在本地的作答与错题
+  记录）；内置题集 × 隐藏，列表底部可恢复。
 - **本地优先**：题集与作答/错题记录都在本机（题集在 `~/.dsh/dsh-quiz/decks/`，进度在
   localStorage），没有账号、没有遥测。
-- 键盘 `A–D` / `1–4` 选答案，`←` / `→` 切题；深/浅色主题跟随宿主 token。
+- 键盘 `A–F` / `1–6` 选答案，`←` / `→` 切题；深/浅色主题跟随宿主 token。
 
 ## 安装
 
-需要 dsh web（本插件在 dsh 0.2.0-rc.2 上开发）。
+需要 dsh web（0.2.0-rc.2 或更新；1.0.1 起两条 Web 路由复用 dsh 的 `connection`
+信任栅栏，因此要求 Host 提供该服务）。包已发布到 npm：
 
-先装 **GitHub 源**（npm 包名定为 `dsh-quiz-tutorial`（尚未发布））：
+```sh
+dsh plugin --profile web add dsh-quiz-tutorial
+```
+
+备选安装方式（npm 不可用时从 GitHub 装同一个包）：
 
 ```sh
 dsh plugin --profile web add github:xiaobin118/dsh-quiz-tutorial
 ```
 
-> 如果之后 npm 上架，可以改用 `dsh plugin --profile web add dsh-quiz-tutorial`。
->
 > 如果装过早期的开发 bundle `dsh-quiz`，先移除它（`dsh plugin --profile web remove dsh-quiz`），
 > 避免两个 bundle 注册同一个 `quiz` 面板。
 
@@ -82,24 +88,42 @@ dsh plugin --profile web add github:xiaobin118/dsh-quiz-tutorial
 
 鼠标移到左侧题集卡片上，右上角出现 **×**：
 
-- **自建题集**：真正删除 `~/.dsh/dsh-quiz/decks/<id>.json`，不可恢复；
+- **自建题集**：真正删除 `~/.dsh/dsh-quiz/decks/<id>.json`，不可恢复；删除成功后该题集的
+  作答、错题记录和隐藏标记会一起清掉，不会污染之后同 id 的题集（包括恢复出来的内置版本）；
 - **内置题集**：从列表隐藏，安装包里的文件不动；列表底部「恢复隐藏的题集（N）」恢复；
-- 所有题集都隐藏时，主区域会显示恢复按钮。
+- 所有题集都隐藏时，主区域会显示恢复按钮；
+- 隐藏只作用于内置题集；从错题本点「看解析 / 重做」会自动把对应的隐藏题集恢复显示，
+  保证打开的是这道题所属的题集。
 
 ## 题集格式
 
 题集是纯 JSON：`id / title / subject / description / notes / questions`，每道题包含
 `prompt / inputs / options / answer / formula / steps / pitfall`。
 
-完整字段、约束和校验规则见 [docs/deck-format.md](docs/deck-format.md)；
+- 文件名必须是 `<id>.json`；与内置题集同 id 表示「用户覆盖版本」；
+- 单套题集序列化后 ≤ 512 KiB，保存前按字节检查，超限直接报错、不写文件；
+- 字段超长会报错而不是静默截断；题目 id 重复会报错而不是改名；
+- 公式用 Unicode 或 `$...$` + `_{...}`/`^{...}` 写，支持常见 LaTeX 命令，但不是完整 LaTeX。
+
+完整字段、约束、校验规则与公式写法见 [docs/deck-format.md](docs/deck-format.md)；
 给 Agent 的出题规范见 [skill.md](skill.md)。
 
-内置题集的数字由 [tools/gen_decks.py](tools/gen_decks.py) 计算并断言选项唯一，
-不是手抄的：
+内置题集的数字（**包括干扰项**）由 [tools/gen_decks.py](tools/gen_decks.py) 计算并断言选项
+唯一，不是手抄的：
 
 ```sh
-python3 tools/gen_decks.py   # 重新生成 decks/*.json 并打印每道题的答案
+python3 tools/gen_decks.py           # 重新生成 decks/*.json 并打印每道题的答案
+python3 tools/gen_decks.py --check   # 只校验仓库里的题集与脚本输出一致
 ```
+
+## 安全与隐私
+
+- 两条 Web 路由（`GET /dsh-quiz/decks`、`POST /dsh-quiz/decks/delete`）在**任何**处理之前
+  调用 dsh 的 `connection.requestRejection(req)`：Host/Origin 栅栏 + 浏览器会话校验；
+  缺失/空 `Host` 直接拒绝，`POST` 必须是 `application/json`；
+- 没有 `connection` 服务时路由 fail-closed（503），不会退化成匿名可读/可删；
+- 题集内容只作为 React 文本渲染（公式渲染器同样不注入 HTML），插件不发外部请求、不读凭据、
+  不做遥测。
 
 ## 内置题集
 
@@ -113,20 +137,49 @@ python3 tools/gen_decks.py   # 重新生成 decks/*.json 并打印每道题的�
 
 ```
 index.js          Host：/dsh-quiz/decks 路由、三个 quiz_* 工具、dsh-quiz 技能注册
-client.js         Web UI：题集列表、题目卡、解析侧栏、错题本、重练队列
+client.js         Web UI 的构建产物（DSH 只加载这一个文件，勿手改）
+client/src/       Web UI 源码，按职责拆分：
+                  base·locale·styles·text·math·state（宿主无关）
+                  components·notebook·page·panel（React 组件与插件注册）
 decks/*.json      内置题集
 skill.md          /skill 出题规范
-tools/gen_decks.py  内置题集的生成与验算脚本
+tools/gen_decks.py   内置题集的生成与验算脚本
+tools/build_client.mjs  把 client/src/*.js 拼成受版本控制的 client.js（无第三方依赖）
+test/*.test.js    node:test 回归测试（题集、校验上限、存储契约、路由栅栏、客户端）
 docs/             截图与题集格式文档
 ```
 
+DSH 的客户端模块系统只服务每个包的一个 bundle（`exports["./client"]`），并且只把
+`require` 解析到平台模块表，无法 import 包内相对模块，所以客户端源码在 `client/src/`、
+运行产物仍是单个 `client.js`：
+
 ```sh
-npm run check                 # node --check index.js && node --check client.js
-python3 tools/gen_decks.py    # 可选：重新生成并校验内置题集
+npm run build:client          # 改完 client/src/*.js 后重新生成 client.js
+npm run check                 # 语法检查 + 确认 client.js 与源码同步
+npm test                      # node --test（无依赖、无网络）
+python3 tools/gen_decks.py --check   # 内置题集与生成脚本一致
 ```
 
 本地测试建议用单独的 dsh profile / DSH_HOME，避免影响日常会话。Host 代码更新后需要
 重启 `dsh web`；只改 `client.js` 时刷新页面即可。
+
+## 更新日志
+
+### 1.0.1
+
+安全与数据完整性修复（针对 1.0.0 的独立审计）：
+
+- 两条 Web 路由接入 dsh 的 `connection` 信任栅栏（Host/Origin + 浏览器会话），空 `Host` 拒绝，
+  `POST` 要求 `application/json`；没有 `connection` 时 fail-closed；
+- 题集大小改为统一的字节契约：保存前超过 512 KiB 直接报错、不落盘，读取同样按字节判断；
+- 文本字段超长改为**报错**而不是静默截断；题目 id 重复改为报错而不是静默改名；
+- 文件名与 `<id>` 不一致的手写题集会被跳过并写进 `errors`，删除/列表/保存使用同一地址；
+- 删除题集时清理它的作答、错题记录与隐藏标记；从错题本打开隐藏题集会先恢复显示；
+- 题面/解析/速查卡的公式改为轻量渲染（`$...$`、`_{...}`/`^{...}`、`\frac`、希腊字母等），
+  不再直接显示 `_{...}` 原文；`skill.md`、`docs/deck-format.md` 统一了写法约定；
+- 修正 `skill.md` / `docs/deck-format.md` 的示例（2×2 输入却写 4×4 输出 + 池化的矛盾），
+  示例改为完整可算的 1×1 结果；内置题集 `ml-cnn` 的干扰项改为脚本计算；
+- 新增 `node:test` 回归测试与 CI（`npm run check`、`npm test`、生成脚本 `--check`）。
 
 ## 贡献
 

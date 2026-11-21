@@ -1,13 +1,33 @@
 /**
- * dsh-quiz — Client half.
+ * dsh-quiz — Client half.  GENERATED FILE — do not edit.
  *
- * A full-page practice surface in the Harness Web UI:
- *   sidebar.panellist  -> "刷题场" icon
- *   main (key=quiz)    -> deck rail | question card | answer aside
+ * Source lives in client/src/*.js (one module per concern):
+ *   base.js        routes/keys derived from this script's URL
+ *   locale.js      zh/en dictionaries (namespace dsh-quiz)
+ *   styles.js      theme-token CSS + injector
+ *   text.js        display helpers
+ *   math.js        math-lite tokenizer for authored deck prose
+ *   state.js       pure answers/mistakes/hidden helpers
+ *   components.js  icons, matrix, options, solution cards, notes
+ *   notebook.js    mistake log
+ *   page.js        the stateful QuizPage
+ *   panel.js       plugin face (locale/styles/panels)
  *
- * Decks are served by the Host half at GET /dsh-quiz/decks.  All visible copy
- * goes through the Client locale service; deck content is data.
+ * `components`/`notebook`/`page`/`panel` are factory bodies, written with
+ * the 4-space factory indent because this script inlines them verbatim.  Edit a
+ * source file, then run `npm run build:client`; `npm run check` fails when
+ * client.js is stale.  DSH serves this single bundle, so keep it in sync.
  */
+
+/**
+ * @module base
+ * Runtime addresses and storage keys.  `APP_BASE` is derived from this script's
+ * own URL so the routes work under any deployment mount; nothing else in the
+ * client depends on the page.
+ *
+ * Provides: APP_BASE, ENDPOINT, DELETE_ENDPOINT, NS, PANEL_ID, STORAGE_KEY.
+ */
+
 const APP_BASE = (() => {
   try {
     const src = document.currentScript && document.currentScript.src
@@ -27,6 +47,14 @@ const DELETE_ENDPOINT = `${APP_BASE}/dsh-quiz/decks/delete`
 const NS = 'dsh-quiz'
 const PANEL_ID = 'quiz'
 const STORAGE_KEY = 'dsh-quiz:state:v1'
+
+/**
+ * @module locale
+ * zh/en dictionaries registered under the `dsh-quiz` namespace.  Every visible
+ * string goes through `ctx.locale`; keep both dictionaries in sync.
+ *
+ * Provides: zh, en.
+ */
 
 const zh = {
   'panel.label': '刷题场',
@@ -76,6 +104,7 @@ const zh = {
   'app.loading': '正在加载题集…',
   'app.error': '题集加载失败',
   'app.retry': '重试',
+  'app.dismiss': '知道了',
   'app.empty': '还没有题集',
   'app.emptyHint': '让 DSH 按复习内容出题：在对话里说「用 quiz_save_deck 为刚才复习的内容出一套题」，保存后回到这里点「刷新题集」。',
   'app.sourceUser': '自建',
@@ -112,7 +141,7 @@ const zh = {
   'quiz.summary': '本套完成：答对 {c}/{n} 题，正确率 {p}%',
   'quiz.notesTab': '速查卡',
   'quiz.asideTab': '本题解析',
-  'quiz.keyboardHint': '键盘：A–D 选答案，← / → 切题',
+  'quiz.keyboardHint': '键盘：A–F 选答案，← / → 切题',
   'aside.empty': '先作答，再看解析。',
   'aside.steps': '手算步骤',
   'aside.formula': '用到的公式',
@@ -174,6 +203,7 @@ const en = {
   'app.loading': 'Loading decks…',
   'app.error': 'Could not load decks',
   'app.retry': 'Retry',
+  'app.dismiss': 'Dismiss',
   'app.empty': 'No decks yet',
   'app.emptyHint': 'Ask DSH to build a deck from the current review context: "use quiz_save_deck for the topic we just reviewed", then press Refresh.',
   'app.sourceUser': 'custom',
@@ -210,7 +240,7 @@ const en = {
   'quiz.summary': 'Deck complete: {c}/{n} correct, {p}% accuracy',
   'quiz.notesTab': 'Cheat sheet',
   'quiz.asideTab': 'Solution',
-  'quiz.keyboardHint': 'Keys: A–D to answer, ← / → to move',
+  'quiz.keyboardHint': 'Keys: A–F to answer, ← / → to move',
   'aside.empty': 'Answer first, then read the solution.',
   'aside.steps': 'Step by step',
   'aside.formula': 'Formula',
@@ -223,6 +253,14 @@ const en = {
   'stats.rate': 'Accuracy',
   'common.refresh': 'Refresh',
 }
+
+/**
+ * @module styles
+ * The plugin's CSS (theme tokens only: `--dsw-alias-*`) and its injector.
+ * `injectStyles` is called once from `apply`, and its disposer removes the tag.
+ *
+ * Provides: CSS, injectStyles.  Requires: nothing.
+ */
 
 const CSS = `
 .dshq-page {
@@ -299,6 +337,15 @@ const CSS = `
   display: grid;
   grid-template-columns: 212px minmax(0, 1fr) 384px;
 }
+.dshq-alert {
+  display: flex; align-items: center; gap: 10px;
+  margin: 8px 14px 0; padding: 8px 12px;
+  border-radius: 9px; font-size: 12.5px; line-height: 1.5;
+  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
+}
+.dshq-alert > span { flex: 1 1 auto; min-width: 0; }
 .dshq-rail {
   min-height: 0; overflow: auto;
   padding: 14px 10px 18px;
@@ -510,10 +557,16 @@ const CSS = `
 .dshq-empty h2 { margin: 0; font-size: 15px; color: var(--dsw-alias-label-primary); }
 .dshq-empty p { margin: 0; max-width: 46ch; font-size: 12.5px; }
 .dshq-loader { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 60px 20px; color: var(--dsw-alias-label-secondary); }
+.dshq-math-sup, .dshq-math-sub {
+  font-size: .72em; line-height: 0;
+}
+.dshq-math-sup { vertical-align: super; }
+.dshq-math-sub { vertical-align: sub; }
 .dshq-loader-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-brand-primary); animation: dshq-pulse 1s infinite ease-in-out; }
 .dshq-loader-dot:nth-child(2) { animation-delay: .15s; }
 .dshq-loader-dot:nth-child(3) { animation-delay: .3s; }
-@keyframes dshq-pulse { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+@keyframes dshq-pulse { 0%, 100% { opacity: .25; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) { .dshq-loader-dot { animation: none; opacity: .6; } } 50% { opacity: 1; transform: translateY(-2px); } }
 .dshq-hint { font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
 .dshq-kbd-hint { display: flex; gap: 10px; flex-wrap: wrap; }
 
@@ -659,6 +712,13 @@ function injectStyles() {
   return () => tag.remove()
 }
 
+/**
+ * @module text
+ * Tiny display helpers shared by the deck view and the accessible labels.
+ *
+ * Provides: cellText, letterOf.  Requires: nothing.
+ */
+
 function cellText(value) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return String(value).replace('-', '\u2212')
@@ -668,6 +728,227 @@ function cellText(value) {
 
 function letterOf(index) {
   return String.fromCharCode(65 + index)
+}
+
+/**
+ * @module math
+ * Math-lite rendering for deck prose.
+ *
+ * Deck content is authored by an agent, so it arrives with LaTeX-ish markup:
+ * `J=\sum_{k=1}^{K}...`, `H_out`, `e^{−2.1115}`, `\frac{a}{b}`, `\gamma_ik`.
+ * Deck text is rendered as React text (never HTML), so `_{...}` and `^{...}`
+ * used to show up literally.  This tokenizer turns the common subset into
+ * `<sup>`/`<sub>` and Unicode symbols; it is deliberately not a TeX engine (no
+ * macro expansion, no layout), and unknown commands degrade to their bare name.
+ * `$...$` / `$$...$$` delimiters are simply dropped, so both "wrap math in
+ * dollars" and "bare `_`/`^`" authoring styles render.
+ *
+ * Provides: MATH_SYMBOLS, MATH_IGNORED, MATH_WRAPPERS, readMathGroup,
+ * wrapMathGroup, readMathCommand, readMathScript, mathTokens, mathPlainText.
+ * Requires: nothing.  The React component lives in components.js.
+ */
+
+/**
+ * Math-lite rendering for deck prose (I9).
+ *
+ * Deck content is authored by an agent, so it arrives with LaTeX-ish markup:
+ * `J=\sum_{k=1}^{K}...`, `H_out`, `e^{−2.1115}`, `\frac{a}{b}`, `\gamma_ik`.
+ * The client renders deck text as plain React text (never HTML), so `_{...}`
+ * and `^{...}` used to show up literally.  This tokenizer turns the common
+ * subset into `<sup>`/`<sub>` and Unicode symbols; it is deliberately not a
+ * TeX engine (no macro expansion, no layout), and unknown commands degrade to
+ * their bare name.  `$...$` / `$$...$$` delimiters are simply dropped, so both
+ * "wrap math in dollars" and "bare `_`/`^`" authoring styles render.
+ */
+const MATH_SYMBOLS = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε', zeta: 'ζ',
+  eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν',
+  xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ', varphi: 'φ',
+  chi: 'χ', psi: 'ψ', omega: 'ω',
+  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ',
+  Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+  sum: 'Σ', prod: 'Π', int: '∫', oint: '∮', infty: '∞', partial: '∂', nabla: '∇',
+  cdot: '·', times: '×', div: '÷', pm: '±', mp: '∓', ast: '∗', star: '⋆',
+  le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠', approx: '≈', equiv: '≡',
+  sim: '∼', propto: '∝', ll: '≪', gg: '≫',
+  to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', mapsto: '↦',
+  in: '∈', notin: '∉', subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇',
+  cup: '∪', cap: '∩', emptyset: '∅', forall: '∀', exists: '∃', neg: '¬', land: '∧', lor: '∨',
+  lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩',
+  cdots: '⋯', ldots: '…', dots: '…', vdots: '⋮', ddots: '⋱',
+  angle: '∠', perp: '⊥', parallel: '∥', triangle: '△',
+  quad: ' ', qquad: '  ', '%': '%', '#': '#', '&': '&', _: '_', '{': '{', '}': '}',
+}
+
+/** `\left(` etc. only change TeX layout; the delimiter itself is kept. */
+const MATH_IGNORED = new Set([
+  'left', 'right', 'big', 'Big', 'bigg', 'Bigg', 'displaystyle', 'textstyle', 'limits', 'nolimits',
+])
+
+/** Commands whose `{...}` argument is plain text, not more math. */
+const MATH_WRAPPERS = new Set(['text', 'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'operatorname'])
+
+function readMathGroup(source, start) {
+  let i = start
+  while (i < source.length && /\s/.test(source[i])) i += 1
+  if (i >= source.length || source[i] !== '{') return null
+  let depth = 0
+  for (let j = i; j < source.length; j += 1) {
+    if (source[j] === '{') depth += 1
+    else if (source[j] === '}') {
+      depth -= 1
+      if (depth === 0) return { text: source.slice(i + 1, j), next: j + 1 }
+    }
+  }
+  return null
+}
+
+function wrapMathGroup(text) {
+  const trimmed = text.trim()
+  if (trimmed.length <= 1 || !/[\s+*/×·]/.test(trimmed)) return trimmed
+  return `(${trimmed})`
+}
+
+function readMathCommand(source, start) {
+  let i = start + 1
+  if (i >= source.length) return { text: '\\', next: i }
+  if (!/[A-Za-z]/.test(source[i])) {
+    const char = source[i]
+    if (char === ',' || char === ';' || char === ':' || char === ' ') return { text: ' ', next: i + 1 }
+    if (char === '!') return { text: '', next: i + 1 }
+    return { text: char, next: i + 1 }
+  }
+  let end = i
+  while (end < source.length && /[A-Za-z]/.test(source[end])) end += 1
+  const name = source.slice(i, end)
+  if (MATH_IGNORED.has(name)) return { text: '', next: end }
+  if (name === 'frac' || name === 'dfrac' || name === 'tfrac') {
+    const numerator = readMathGroup(source, end)
+    const denominator = numerator === null ? null : readMathGroup(source, numerator.next)
+    if (numerator === null || denominator === null) return { text: `${name}`, next: end }
+    return {
+      text: `${wrapMathGroup(numerator.text)}/${wrapMathGroup(denominator.text)}`,
+      next: denominator.next,
+    }
+  }
+  if (name === 'sqrt') {
+    const group = readMathGroup(source, end)
+    if (group === null) return { text: '√', next: end }
+    return { text: `√${wrapMathGroup(group.text)}`, next: group.next }
+  }
+  if (MATH_WRAPPERS.has(name)) {
+    const group = readMathGroup(source, end)
+    if (group === null) return { text: '', next: end }
+    return { text: group.text, next: group.next }
+  }
+  if (Object.prototype.hasOwnProperty.call(MATH_SYMBOLS, name)) {
+    return { text: MATH_SYMBOLS[name], next: end }
+  }
+  return { text: name, next: end }
+}
+
+function readMathScript(source, start) {
+  if (start >= source.length) return null
+  if (source[start] === '{') return readMathGroup(source, start)
+  let end = start
+  if (source[end] === '−' || source[end] === '-') end += 1
+  while (end < source.length && /[0-9A-Za-z.]/.test(source[end])) end += 1
+  if (end === start) return null
+  return { text: source.slice(start, end), next: end }
+}
+
+/**
+ * Tokenize deck prose into `{type:'text'}` / `{type:'sup'|'sub', tokens}` nodes.
+ * Pure and side-effect free so `test/client-state.test.js` can assert it.
+ */
+function mathTokens(value) {
+  const source = String(value ?? '')
+  const nodes = []
+  let buffer = ''
+  const flush = () => {
+    if (buffer !== '') {
+      nodes.push({ type: 'text', text: buffer })
+      buffer = ''
+    }
+  }
+  let i = 0
+  while (i < source.length) {
+    const char = source[i]
+    if (char === '$') {
+      i += 1
+      continue
+    }
+    if (char === '\\') {
+      const command = readMathCommand(source, i)
+      buffer += command.text
+      i = command.next
+      continue
+    }
+    if (char === '^' || char === '_') {
+      const script = readMathScript(source, i + 1)
+      if (script === null) {
+        buffer += char
+        i += 1
+        continue
+      }
+      flush()
+      nodes.push({ type: char === '^' ? 'sup' : 'sub', tokens: mathTokens(script.text) })
+      i = script.next
+      continue
+    }
+    buffer += char
+    i += 1
+  }
+  flush()
+  return nodes
+}
+
+/** Plain-text view of the tokenizer output (used for accessible labels). */
+function mathPlainText(value) {
+  return mathTokens(value).map(function flatten(token) {
+    return token.type === 'text' ? token.text : token.tokens.map(flatten).join('')
+  }).join('')
+}
+
+/**
+ * @module state
+ * Pure progress/queue helpers over the persisted shape:
+ * `{ deckId, qi, answers, mistakes, hiddenDecks }`.
+ *
+ * Every function here is pure and side-effect free; the page component owns the
+ * React state.  They are also the regression surface for the audit fixes
+ * (deleting a deck purges its answers/mistakes/hidden flag; opening a mistake
+ * from a hidden deck makes that deck visible again).
+ *
+ * Provides: withoutDeckAnswers, withoutDeckMistakes, withoutHiddenDeck,
+ * withDeckVisible, readStored, MISTAKE_SEP, mistakeKey, splitMistakeKey,
+ * normalizeHiddenDecks, normalizeMistakes, resolveQueueItem, mistakeRows,
+ * formatTime, fetchDecks.
+ * Requires: STORAGE_KEY (base.js).
+ */
+
+function withoutDeckAnswers(answers, deckId) {
+  const next = { ...answers }
+  delete next[deckId]
+  return next
+}
+
+function withoutDeckMistakes(mistakes, deckId) {
+  const next = {}
+  for (const [key, record] of Object.entries(mistakes)) {
+    const parts = splitMistakeKey(key)
+    if (parts !== null && parts[0] === deckId) continue
+    next[key] = record
+  }
+  return next
+}
+
+function withoutHiddenDeck(hiddenDecks, deckId) {
+  return hiddenDecks.filter((id) => id !== deckId)
+}
+
+function withDeckVisible(hiddenDecks, deckId) {
+  return hiddenDecks.includes(deckId) ? withoutHiddenDeck(hiddenDecks, deckId) : hiddenDecks
 }
 
 function readStored() {
@@ -765,13 +1046,40 @@ async function fetchDecks(signal) {
   }
   return data
 }
-
 window.__ModuleLoader__.load({
   id: 'dsh-quiz-tutorial',
   factory(require) {
     const React = require('react')
     const h = React.createElement
     const { useCallback, useEffect, useMemo, useRef, useState } = React
+
+/**
+ * @module components
+ * Presentational pieces of the practice page: icons, matrix rendering, option
+ * buttons, the solution/aside cards, step blocks and the notes panel.  Deck
+ * prose goes through `MathText` so authored math renders instead of leaking
+ * `_{...}` into the UI.
+ *
+ * Provides: renderMathTokens, MathText, GridIcon, CheckIcon, CrossIcon,
+ * RefreshIcon, ChevronIcon, MatrixView, Inputs, OptionButton, optionState,
+ * AnswerValue, VerdictCard, StepBlock, Solution, Notes.
+ * Requires: h, React (factory prologue); mathTokens/mathPlainText (math.js);
+ * cellText/letterOf (text.js); appendIcon? no.
+ */
+
+    function renderMathTokens(tokens) {
+      return tokens.map((token, index) => (token.type === 'text'
+        ? token.text
+        : h(token.type, {
+          key: `m${index}`,
+          className: token.type === 'sup' ? 'dshq-math-sup' : 'dshq-math-sub',
+        }, renderMathTokens(token.tokens))))
+    }
+
+    /** Deck prose with `_{...}`/`^{...}`/`$...$` turned into real sup/sub text. */
+    function MathText({ text }) {
+      return h(React.Fragment, null, renderMathTokens(mathTokens(text)))
+    }
 
     function GridIcon({ size = 20 }) {
       const cells = [[2.5, 2.5], [13.5, 2.5], [2.5, 13.5], [13.5, 13.5]]
@@ -844,18 +1152,21 @@ window.__ModuleLoader__.load({
         : state === 'picked-wrong'
           ? h('span', { className: 'dshq-opt-mark is-bad' }, h(CrossIcon))
           : null
+      const description = option.kind === 'matrix'
+        ? `矩阵 ${option.matrix.map((row) => row.map(cellText).join(', ')).join('; ')}`
+        : mathPlainText(option.text)
       return h('button', {
         type: 'button',
         className: classes.join(' '),
         onClick: () => onPick(index),
         disabled,
         'aria-pressed': state === 'picked-correct' || state === 'picked-wrong' ? true : undefined,
-        'aria-label': `${letterOf(index)}.`,
+        'aria-label': `${letterOf(index)}. ${description}`,
       },
-      h('span', { className: 'dshq-opt-letter' }, letterOf(index)),
+      h('span', { className: 'dshq-opt-letter', 'aria-hidden': true }, letterOf(index)),
       h('span', { className: 'dshq-opt-body' }, option.kind === 'matrix'
         ? h(MatrixView, { matrix: option.matrix, small: true })
-        : h('span', { className: 'dshq-opt-value' }, option.text)),
+        : h('span', { className: 'dshq-opt-value' }, h(MathText, { text: option.text }))),
       mark)
     }
 
@@ -874,7 +1185,7 @@ window.__ModuleLoader__.load({
         h('span', { className: chipClass }, letter),
         option.kind === 'matrix'
           ? h(MatrixView, { matrix: option.matrix, small: true })
-          : h('span', null, option.text))
+          : h('span', null, h(MathText, { text: option.text })))
     }
 
     function VerdictCard({ question, picked, t, onRetry }) {
@@ -900,8 +1211,8 @@ window.__ModuleLoader__.load({
 
     function StepBlock({ step }) {
       return h('div', { className: 'dshq-step' },
-        h('h4', { className: 'dshq-step-title' }, step.title),
-        h('p', { className: 'dshq-step-body' }, step.body),
+        h('h4', { className: 'dshq-step-title' }, h(MathText, { text: step.title })),
+        h('p', { className: 'dshq-step-body' }, h(MathText, { text: step.body })),
         Array.isArray(step.matrices) && step.matrices.length > 0
           ? h('div', { className: 'dshq-step-matrices' }, step.matrices.map((entry, index) => h(MatrixView, {
             key: index, matrix: entry.matrix, label: entry.label, small: true,
@@ -915,7 +1226,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dshq-verdict' }, h(GridIcon, { size: 15 }), h('span', null, t('aside.empty'))),
           question.formula ? h('div', { style: { marginTop: '10px' } },
             h('div', { className: 'dshq-section-title' }, t('aside.formula')),
-            h('div', { className: 'dshq-formula' }, question.formula)) : null,
+            h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula }))) : null,
           h('p', { className: 'dshq-hint', style: { margin: '10px 0 0' } }, t('quiz.pickHint')))
       }
       const diagnostics = question.options
@@ -925,13 +1236,13 @@ window.__ModuleLoader__.load({
         h(VerdictCard, { question, picked, t, onRetry }),
         question.formula ? h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.formula')),
-          h('div', { className: 'dshq-formula' }, question.formula)) : null,
+          h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula }))) : null,
         h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.steps')),
           question.steps.map((step, index) => h(StepBlock, { key: index, step }))),
         question.pitfall ? h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.pitfall')),
-          h('p', { className: 'dshq-step-body' }, question.pitfall)) : null,
+          h('p', { className: 'dshq-step-body' }, h(MathText, { text: question.pitfall }))) : null,
         diagnostics.length > 0 ? h('div', { className: 'dshq-card' },
           h('div', { className: 'dshq-section-title' }, t('aside.diagnostics')),
           h('div', { className: 'dshq-diagnostics' }, diagnostics.map((entry) => h('div', {
@@ -939,7 +1250,7 @@ window.__ModuleLoader__.load({
             className: `dshq-diagnostic${entry.index === picked ? ' is-picked' : ''}`,
           },
           h('span', { className: 'dshq-chip-letter' }, letterOf(entry.index)),
-          h('span', null, entry.option.note))))) : null)
+          h('span', null, h(MathText, { text: entry.option.note })))))) : null)
     }
 
     function Notes({ notes, t }) {
@@ -947,9 +1258,20 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'dshq-empty' }, h('h2', null, t('aside.notesTitle')), h('p', null, t('aside.notesEmpty')))
       }
       return h(React.Fragment, null, notes.map((note, index) => h('div', { key: index, className: 'dshq-card dshq-note-card' },
-        h('h3', { className: 'dshq-note-title' }, note.title),
-        h('p', { className: 'dshq-note-body' }, note.body))))
+        h('h3', { className: 'dshq-note-title' }, h(MathText, { text: note.title })),
+        h('p', { className: 'dshq-note-body' }, h(MathText, { text: note.body })))))
     }
+
+/**
+ * @module notebook
+ * The mistake log: one card per recorded mistake, the notebook body with its
+ * filters, and the aside with the review-all action.
+ *
+ * Provides: NotebookIcon, scoreChip, statBox, MistakeCard, NotebookMain,
+ * NotebookAside.
+ * Requires: h (factory prologue), MathText (components.js), letterOf/text.js,
+ * formatTime/state.js.
+ */
 
     function NotebookIcon({ size = 16 }) {
       return h('svg', {
@@ -984,7 +1306,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'dshq-mistake-badge' }, t('mistakes.wrongTimes', { n: rec.wrong || 1 })),
           mastered ? h('span', { className: 'dshq-mistake-done' }, t('mistakes.filter.mastered')) : null),
         question
-          ? h('p', { className: 'dshq-mistake-prompt' }, question.prompt)
+          ? h('p', { className: 'dshq-mistake-prompt' }, h(MathText, { text: question.prompt }))
           : h('p', { className: 'dshq-mistake-prompt' }, t('mistakes.missingDeck')),
         question
           ? h('div', { className: 'dshq-mistake-meta' },
@@ -1073,6 +1395,16 @@ window.__ModuleLoader__.load({
           h('span', { className: 'dshq-hint' }, t('mistakes.explainHint'))))
     }
 
+/**
+ * @module page
+ * The full-page practice surface: deck rail, question card, answer aside, the
+ * review queue, keyboard handling, and all persisted progress.  This is the
+ * only stateful component in the plugin.
+ *
+ * Provides: QuizPage.
+ * Requires: h + React hooks (factory prologue); every other module.
+ */
+
     function QuizPage(props) {
       const { t, onBack } = props
       const [initial] = useState(readStored)
@@ -1088,6 +1420,7 @@ window.__ModuleLoader__.load({
       const [queue, setQueue] = useState(null)
       const [refreshing, setRefreshing] = useState(false)
       const [removing, setRemoving] = useState(null)
+      const [actionError, setActionError] = useState(null)
       const mainRef = useRef(null)
       const asideRef = useRef(null)
 
@@ -1118,8 +1451,10 @@ window.__ModuleLoader__.load({
       }, [load])
 
       const decks = snapshot.decks
+      // Hide is a bundled-deck feature; a stale id left in localStorage must not
+      // hide a user deck that happens to reuse it (M12).
       const visibleDecks = useMemo(
-        () => decks.filter((deck) => !hiddenDecks.includes(deck.id)),
+        () => decks.filter((deck) => !(deck.source === 'bundled' && hiddenDecks.includes(deck.id))),
         [decks, hiddenDecks],
       )
       const currentDeck = useMemo(() => {
@@ -1316,6 +1651,9 @@ window.__ModuleLoader__.load({
             return { ...previous, [row.deckId]: deckState }
           })
         }
+        // A mistake can outlive a hidden bundled deck; unhide it first so
+        // `currentDeck` resolves to the deck the row actually belongs to (I2).
+        setHiddenDecks((previous) => withDeckVisible(previous, row.deckId))
         const index = row.deck.questions.findIndex((item) => item.id === row.qid)
         setDeckId(row.deckId)
         setQi(index >= 0 ? index : 0)
@@ -1347,7 +1685,8 @@ window.__ModuleLoader__.load({
       function clearMastered() {
         if (counts.mastered === 0) return
         try {
-          if (typeof window.confirm === 'function' && !window.confirm(t('mistakes.clearConfirm', { n: counts.mastered }))) return
+          if (typeof window.confirm !== 'function') return
+          if (!window.confirm(t('mistakes.clearConfirm', { n: counts.mastered }))) return
         } catch {
           return
         }
@@ -1368,8 +1707,8 @@ window.__ModuleLoader__.load({
       const refresh = () => { load() }
 
       function hideDeck(deck) {
-        if (!deck) return
-        let confirmed = true
+        if (!deck || deck.source !== 'bundled') return
+        let confirmed = false
         try {
           if (typeof window.confirm === 'function') confirmed = window.confirm(t('deck.hideConfirm', { title: deck.title }))
         } catch {
@@ -1385,7 +1724,7 @@ window.__ModuleLoader__.load({
 
       async function removeDeck(deck) {
         if (!deck || deck.source !== 'user' || removing !== null) return
-        let confirmed = true
+        let confirmed = false
         try {
           if (typeof window.confirm === 'function') confirmed = window.confirm(t('deck.removeConfirm', { title: deck.title }))
         } catch {
@@ -1402,14 +1741,24 @@ window.__ModuleLoader__.load({
           })
           const data = await response.json().catch(() => ({}))
           if (!response.ok || data?.ok !== true) {
-            if (response.status === 404 || response.status === 405) throw new Error(t('deck.restartRequired'))
-            throw new Error(data?.error || `HTTP ${response.status}`)
+            // 405 (or a body-less 404) means an older Host without the route;
+            // any other 404 carries the Host's own "deck not found" message.
+            if (response.status === 405 || (response.status === 404 && !data?.message)) {
+              throw new Error(t('deck.restartRequired'))
+            }
+            throw new Error(data?.message || data?.error || `HTTP ${response.status}`)
           }
+          // The deck's answers/mistakes/hidden flag belong to that deck; a
+          // bundled deck restored by this delete must start clean (I3).
+          setAnswers((previous) => withoutDeckAnswers(previous, deck.id))
+          setMistakes((previous) => withoutDeckMistakes(previous, deck.id))
+          setHiddenDecks((previous) => withoutHiddenDeck(previous, deck.id))
           await load()
           setDeckId((previous) => (previous === deck.id ? null : previous))
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
           setSnapshot((previous) => ({ ...previous, errors: [`${t('deck.removeFailed')}: ${message}`] }))
+          setActionError(`${t('deck.removeFailed')}: ${message}`)
         } finally {
           setRemoving(null)
         }
@@ -1442,8 +1791,8 @@ window.__ModuleLoader__.load({
           }
           const lower = key.toLowerCase()
           let index = -1
-          if (lower.length === 1 && lower >= 'a' && lower <= 'd') index = lower.charCodeAt(0) - 97
-          else if (lower.length === 1 && lower >= '1' && lower <= '4') index = Number(lower) - 1
+          if (lower.length === 1 && lower >= 'a' && lower <= 'f') index = lower.charCodeAt(0) - 97
+          else if (lower.length === 1 && lower >= '1' && lower <= '6') index = Number(lower) - 1
           if (index < 0 || index >= question.options.length) return
           if (picked !== null) return
           event.preventDefault()
@@ -1634,14 +1983,14 @@ window.__ModuleLoader__.load({
                 question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
                 question.topic ? h('span', { className: 'dshq-topic' }, question.topic) : null,
                 queue && practiceDeck ? h('span', { className: 'dshq-mistake-deck' }, practiceDeck.title) : null),
-              h('p', { className: 'dshq-stem' }, question.prompt),
+              h('p', { className: 'dshq-stem' }, h(MathText, { text: question.prompt })),
               Array.isArray(question.inputs) && question.inputs.length > 0
                 ? h(Inputs, { inputs: question.inputs })
                 : null,
               question.conditions
                 ? h('div', { className: 'dshq-conditions' },
                   h('span', { className: 'dshq-cond-label' }, t('quiz.conditions')),
-                  h('span', null, question.conditions))
+                  h('span', null, h(MathText, { text: question.conditions })))
                 : null,
               h('div', { className: 'dshq-options' }, question.options.map((option, index) => h(OptionButton, {
                 key: index,
@@ -1724,9 +2073,26 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dshq-kbd-hint' },
               h('span', { className: 'dshq-hint' }, t('quiz.keyboardHint')))))
 
-      return h('div', { className: 'dshq-page' }, header,
+      const actionBanner = actionError
+        ? h('div', { className: 'dshq-alert', role: 'alert' },
+          h('span', null, actionError),
+          h('button', { type: 'button', className: 'dshq-button', onClick: () => setActionError(null) },
+            t('app.dismiss')))
+        : null
+
+      return h('div', { className: 'dshq-page' }, header, actionBanner,
         h('div', { className: 'dshq-layout' }, rail, main, aside))
     }
+
+/**
+ * @module panel
+ * Registers the plugin face: locale dictionaries, styles, the `main` panel and
+ * the sidebar icon.  `inject` stays the same shape the module loader expects.
+ *
+ * Provides: QuizIcon, pluginFace.
+ * Requires: zh/en (locale.js), injectStyles (styles.js), QuizPage (page.js),
+ * NS/PANEL_ID (base.js).  The builder appends `return pluginFace()`.
+ */
 
     function QuizIcon({ size = 18 }) {
       return h('svg', {
@@ -1739,37 +2105,42 @@ window.__ModuleLoader__.load({
       })))
     }
 
-    return {
-      inject: ['slots', 'locale', 'layout'],
-      apply(ctx) {
-        ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-quiz: dictionaries')
-        ctx.effect(() => injectStyles(), 'dsh-quiz: styles')
-        const t = ctx.locale.bind(NS)
+    /** The plugin face: what `apply(ctx)` registers with the harness. */
+    function pluginFace() {
+      return {
+        inject: ['slots', 'locale', 'layout'],
+        apply(ctx) {
+          ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-quiz: dictionaries')
+          ctx.effect(() => injectStyles(), 'dsh-quiz: styles')
+          const t = ctx.locale.bind(NS)
 
-        ctx.slots.inject('main', () => ctx.slots.register({
-          name: 'main',
-          key: PANEL_ID,
-          locale: NS,
-          inject: () => ({
-            t,
-            onBack: () => {
-              try {
-                ctx.layout.selectPanel(null)
-              } catch {
-                /* layout may already be on the conversation */
-              }
-            },
-          }),
-        }, QuizPage))
+          ctx.slots.inject('main', () => ctx.slots.register({
+            name: 'main',
+            key: PANEL_ID,
+            locale: NS,
+            inject: () => ({
+              t,
+              onBack: () => {
+                try {
+                  ctx.layout.selectPanel(null)
+                } catch {
+                  /* layout may already be on the conversation */
+                }
+              },
+            }),
+          }, QuizPage))
 
-        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-          name: 'sidebar.panellist',
-          id: PANEL_ID,
-          order: 32,
-          locale: NS,
-          label: () => t('panel.label'),
-        }, QuizIcon))
-      },
+          ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+            name: 'sidebar.panellist',
+            id: PANEL_ID,
+            order: 32,
+            locale: NS,
+            label: () => t('panel.label'),
+          }, QuizIcon))
+        },
+      }
     }
+
+    return pluginFace()
   },
 })

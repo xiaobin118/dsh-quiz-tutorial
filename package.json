@@ -1,7 +1,7 @@
 {
   "name": "dsh-quiz-tutorial",
-  "version": "1.0.0",
-  "private": true,
+  "version": "1.0.1",
+  "private": false,
   "description": "刷题场：把复习内容变成题集，题目旁给逐步手算解析，错题自动进错题本；支持 /skill 出题与题集删除/隐藏。",
   "type": "module",
   "icon": "./icon.svg",
@@ -56,7 +56,11 @@
     "education"
   ],
   "scripts": {
-    "check": "node --check index.js && node --check client.js"
+    "build:client": "node tools/build_client.mjs",
+    "check": "node --check index.js && node --check client.js && node tools/build_client.mjs --check",
+    "pretest": "node tools/build_client.mjs --check",
+    "test": "node --test \"test/**/*.test.js\"",
+    "verify": "npm run check && npm test"
   },
   "publishConfig": {
     "access": "public"

@@ -6,12 +6,15 @@ independent, plain-Python implementation; nothing is typed by hand.  The
 script refuses to write a deck when an option duplicates another option or
 when the correct option is not unique.
 
-Run:  python3 tools/gen_decks.py
+Run:  python3 tools/gen_decks.py           # regenerate decks/*.json and print answers
+      python3 tools/gen_decks.py --check   # verify the committed decks match this
+                                           # script byte-for-byte (exit 1 on drift)
 Out:  decks/ml-cnn.json, decks/ml-core.json
 """
 from __future__ import annotations
 
 import json
+import sys
 from fractions import Fraction
 from pathlib import Path
 
@@ -197,8 +200,9 @@ def pool_windows_text(m, size, stride, mode="max"):
     oh = (h - size) // stride + 1
     parts = []
     idx = 0
+    ow = (w - size) // stride + 1
     for i in range(oh):
-        for j in range(oh if False else (w - size) // stride + 1):
+        for j in range(ow):
             vals = windows[idx]
             idx += 1
             shown = ", ".join(fmt(v) for v in vals)
@@ -249,10 +253,8 @@ def assemble_options(correct, wrongs, answer_index):
     opts = [mk_option_correct(correct)]
     for w in wrongs:
         opts.append(mk_option_wrong(w))
-    while len(opts) < 4:
-        raise AssertionError("need exactly three distractors")
     if len(opts) != 4:
-        raise AssertionError("exactly four options required")
+        raise AssertionError(f"exactly four options required, got {len(opts)}")
     keys = [key_of(o) for o in opts]
     if len(set(keys)) != 4:
         raise AssertionError(f"duplicate options: {keys}")
@@ -314,6 +316,8 @@ def cnn_deck():
     C1_nobias, _ = conv_channels([X1], [K1], bias=0)
     P1, _ = pool(C1, 2, 2, "max")
     P1_nobias, _ = pool(C1_nobias, 2, 2, "max")
+    P1_avg, _ = pool(C1, 2, 2, "avg")
+    P1_stride, _ = pool(C1, 2, 1, "max")
     terms, raw, with_b = conv_terms([X1], [K1], -1, 0, 1, 0, 0)
     qs.append(question(
         "q1", "单通道卷积 + 偏置 + 最大池化", "基础",
@@ -322,9 +326,9 @@ def cnn_deck():
         [mat_input("X", X1), mat_input("K", K1), scalar_input("b", -1)],
         "无填充（P=0），卷积步长 S=1；池化窗口 2×2、步长 2，全程不使用激活函数。",
         P1,
-        [(P1_nobias, "忘记加偏置 b=−1，导致每个池化结果整体偏大。"),
-         ([[2, 3], [3, 4]], "错误选项：池化窗口起点取错，四个窗口的数值都偏移了。"),
-         ([[3, 4], [4, 4]], "错误选项：卷积结果错位一格后再池化。")],
+        [(P1_nobias, "忘记加偏置 b=−1：每个池化结果都偏大 1。"),
+         (P1_avg, "把最大池化当成了平均池化：每个 2×2 窗口求和后除以 4。"),
+         (P1_stride, "把池化步长当成了 1（窗口重叠）：会得到 3×3 而不是 2×2。")],
         3,
         "H_out = ⌊(H + 2P − K)/S⌋ + 1；最大池化取窗口内最大值，偏置在卷积之后、池化之前加一次。",
         [
@@ -871,21 +875,75 @@ def validate_deck(deck):
     return True
 
 
-def main():
+def render(deck) -> str:
+    return json.dumps(deck, ensure_ascii=False, indent=2) + "\n"
+
+
+def print_answers(deck):
+    for q in deck["questions"]:
+        opts = q["options"]
+        correct = opts[q["answer"]]
+        shown = correct.get("text") if correct["kind"] == "text" else matrix_text(
+            [[value(v) for v in row] for row in correct["matrix"]])
+        print(f"  {q['id']}: answer {q['answer']} = {shown}")
+
+
+def doc_example():
+    """The worked example in docs/deck-format.md and skill.md, recomputed.
+
+    The 1.0.0 docs showed a 2x2 input next to a "4x4 then 2x2 pool" step; this
+    function keeps the documented example honest: 2x2 input, 2x2 kernel,
+    P=0/S=1 -> one 1x1 convolution value, no pooling.
+    """
+    X = [[1, 0], [0, 1]]
+    K = [[1, -1], [0, 2]]
+    conv, _ = conv_channels([X], [K], bias=-1)
+    no_bias, _ = conv_channels([X], [K], bias=0)
+    terms, raw, with_bias = conv_terms([X], [K], -1, 0, 1, 0, 0)
+    assert matrix_values(conv) == [[2]], matrix_values(conv)
+    assert matrix_values(no_bias) == [[3]], matrix_values(no_bias)
+    assert raw == 3 and with_bias == 2, (raw, with_bias)
+    flipped = no_bias[0][0] + 1
+    assert value(flipped) == 4, value(flipped)
+    print("doc example: 2x2 input, 2x2 kernel, P=0/S=1")
+    print(f"  {' + '.join(terms)} = {fmt(raw)}; {fmt(raw)} + b({fmt(-1)}) = {fmt(with_bias)} -> [[2]]")
+    print(f"  distractors: forgot bias -> [[{fmt(no_bias[0][0])}]], bias sign flipped -> [[{fmt(flipped)}]]")
+
+
+def check(decks) -> bool:
+    ok = True
+    for deck in decks:
+        validate_deck(deck)
+        path = OUT / f"{deck['id']}.json"
+        expected = render(deck)
+        if not path.exists():
+            print(f"MISSING {path}: 先运行 python3 tools/gen_decks.py", file=sys.stderr)
+            ok = False
+            continue
+        if path.read_text(encoding="utf-8") != expected:
+            print(f"STALE {path}: 与生成脚本输出不一致，运行 python3 tools/gen_decks.py", file=sys.stderr)
+            ok = False
+    return ok
+
+
+def main() -> int:
     decks = [cnn_deck(), core_deck()]
+    doc_example()
+    if "--check" in sys.argv[1:]:
+        if not check(decks):
+            return 1
+        for deck in decks:
+            print(f"ok {OUT / (deck['id'] + '.json')}: {len(deck['questions'])} questions")
+        return 0
     OUT.mkdir(parents=True, exist_ok=True)
     for deck in decks:
         validate_deck(deck)
         path = OUT / f"{deck['id']}.json"
-        path.write_text(json.dumps(deck, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        path.write_text(render(deck), encoding="utf-8")
         print(f"wrote {path} ({len(deck['questions'])} questions)")
-        for q in deck["questions"]:
-            opts = q["options"]
-            correct = opts[q["answer"]]
-            shown = correct.get("text") if correct["kind"] == "text" else matrix_text(
-                [[value(v) for v in row] for row in correct["matrix"]])
-            print(f"  {q['id']}: answer {q['answer']} = {shown}")
+        print_answers(deck)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
