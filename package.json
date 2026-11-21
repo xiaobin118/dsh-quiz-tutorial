@@ -13,6 +13,7 @@
   },
   "files": [
     "client.js",
+    "client/src/*.js",
     "cordis.patch.yml",
     "decks/*.json",
     "docs/screenshots/*.png",
@@ -24,7 +25,11 @@
     "skill.md",
     "README.md",
     "LICENSE",
-    "CONTRIBUTING.md"
+    "CONTRIBUTING.md",
+    "tools/build_client.mjs",
+    "tools/gen_decks.py",
+    "test/*.js",
+    "test/*.mjs"
   ],
   "dsh": {
     "bundle": {

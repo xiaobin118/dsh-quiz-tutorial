@@ -309,8 +309,10 @@ const CSS = `
 .dshq-loader-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-brand-primary); animation: dshq-pulse 1s infinite ease-in-out; }
 .dshq-loader-dot:nth-child(2) { animation-delay: .15s; }
 .dshq-loader-dot:nth-child(3) { animation-delay: .3s; }
-@keyframes dshq-pulse { 0%, 100% { opacity: .25; transform: translateY(0); }
-@media (prefers-reduced-motion: reduce) { .dshq-loader-dot { animation: none; opacity: .6; } } 50% { opacity: 1; transform: translateY(-2px); } }
+@keyframes dshq-pulse { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+/* Keep this at the top level: a media query nested inside a keyframes rule is
+   invalid CSS and browsers drop it (the 1.0.1 build shipped it inside). */
+@media (prefers-reduced-motion: reduce) { .dshq-loader-dot { animation: none; opacity: .6; } }
 .dshq-hint { font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
 .dshq-kbd-hint { display: flex; gap: 10px; flex-wrap: wrap; }
 

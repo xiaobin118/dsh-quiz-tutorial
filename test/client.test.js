@@ -191,6 +191,22 @@ test('stored mistakes are normalized defensively', () => {
   assert.equal(mistakes.bad.lastPick, null)
 })
 
+test('reduced-motion media query sits at CSS top level, not inside @keyframes', () => {
+  const css = client.run('CSS')
+  const depthAt = []
+  let depth = 0
+  for (let i = 0; i < css.length; i += 1) {
+    if (css.startsWith('@media', i) || css.startsWith('@keyframes', i)) depthAt.push([css.slice(i, css.indexOf('{', i)), depth])
+    if (css[i] === '{') depth += 1
+    else if (css[i] === '}') depth -= 1
+  }
+  assert.ok(depthAt.length > 0)
+  for (const [label, depth] of depthAt) {
+    assert.equal(depth, 0, `${label.trim()} must be top-level CSS (found depth ${depth})`)
+  }
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.dshq-loader-dot \{ animation: none;/)
+})
+
 test('keyboard hint matches the six-option schema', () => {
   assert.equal(client.run("zh['quiz.keyboardHint']"), '键盘：A–F 选答案，← / → 切题')
   assert.match(client.run("en['quiz.keyboardHint']"), /A–F/)

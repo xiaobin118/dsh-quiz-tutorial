@@ -70,8 +70,10 @@ Host 代码更新后必须重启 `dsh web`；只改 `client.js` 时刷新页面�
 
 - `client.js` 不 `require` 任何 Harness Client 包（只用 `react`），样式只用 `--dsw-alias-*` token；
 - 可见文案走 `ctx.locale`，zh/en 两份字典都要加；
-- Host 不引入第三方依赖；失败统一返回 `{ ok: false, code, message }`（成功 `{ ok: true, message }`），
-  路由的错误也用同一形状：`{ ok: false, code, message }`；
+- Host 不引入第三方依赖；失败统一返回 `{ ok: false, code, message }`：路由错误就是这个形状，
+  `quiz_save_deck` / `quiz_delete_deck` 的工具结果也一样（`invalid-argument`、`invalid-json`、
+  `invalid-deck`、`deck-too-large`、`write-failed`、`invalid-id`、`not-found`、`delete-failed`）；
+  成功结果至少含 `{ ok: true, message }`，可以带 `path` / `bytes` / `decks` / `errors` 等附加字段；
 - 两条 Web 路由必须先过 dsh 的信任栅栏（`ctx.connection.requestRejection(req)`），
   再检查方法 / `content-type`，最后才读 body；空 `Host` 一律拒绝；没有 `connection` 时 fail-closed。
   删除只允许用户题集，不允许删内置题集；

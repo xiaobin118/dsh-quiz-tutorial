@@ -218,6 +218,38 @@ test('apply() wires both routes, three tools and the skill through the fence', a
   }
 })
 
+test('tool failures carry a stable code, matching the documented shape', async () => {
+  const dirs = tempDirs()
+  try {
+    const stub = stubContext()
+    apply(stub.ctx, { bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    const save = stub.tools[1]
+    const remove = stub.tools[2]
+
+    const empty = await save.execute({ deck: '  ' })
+    assert.deepEqual([empty.ok, empty.code], [false, 'invalid-argument'])
+
+    const badJson = await save.execute({ deck: '{nope' })
+    assert.deepEqual([badJson.ok, badJson.code], [false, 'invalid-json'])
+
+    const invalid = await save.execute({ deck: JSON.stringify({ id: 'Bad Id' }) })
+    assert.deepEqual([invalid.ok, invalid.code], [false, 'invalid-deck'])
+    assert.ok(Array.isArray(invalid.errors) && invalid.errors.length > 0)
+
+    const overlong = sampleDeck('coded')
+    overlong.questions[0].prompt = 'x'.repeat(4001)
+    const tooLong = await save.execute({ deck: JSON.stringify(overlong) })
+    assert.deepEqual([tooLong.ok, tooLong.code], [false, 'invalid-deck'])
+
+    const missing = await remove.execute({ id: 'nope' })
+    assert.deepEqual([missing.ok, missing.code], [false, 'not-found'])
+    const invalidId = await remove.execute({ id: '../x' })
+    assert.deepEqual([invalidId.ok, invalidId.code], [false, 'invalid-id'])
+  } finally {
+    dirs.cleanup()
+  }
+})
+
 test('apply() surfaces the size contract as a failed save, not a success', async () => {
   const dirs = tempDirs()
   try {
@@ -232,6 +264,9 @@ test('apply() surfaces the size contract as a failed save, not a success', async
     }))
     const result = await stub.tools[1].execute({ deck: JSON.stringify(deck) })
     assert.equal(result.ok, false)
+    assert.equal(result.code, 'deck-too-large')
+    assert.equal(result.limit, __internal.MAX_DECK_BYTES)
+    assert.ok(result.bytes > __internal.MAX_DECK_BYTES)
     assert.match(result.message, /512 KiB/)
     assert.deepEqual(readdirOf(dirs.userDir), [])
   } finally {

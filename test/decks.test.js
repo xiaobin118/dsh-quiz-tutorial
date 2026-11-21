@@ -80,6 +80,13 @@ test('package, client bundle and cordis patch agree on one id', () => {
   assert.equal(pkg.private, false)
   assert.equal(pkg.exports['./client'], './client.js')
   assert.equal(pkg.dsh.client.platform, 'web')
+  // The packed tarball must ship everything `npm run check` / `npm test` /
+  // gen_decks --check need, so the advertised commands work off a registry
+  // install too (audit D1).  Explicit file patterns keep __pycache__/*.pyc out.
+  for (const entry of ['client/src/*.js', 'tools/build_client.mjs', 'tools/gen_decks.py', 'test/*.js', 'test/*.mjs']) {
+    assert.ok(pkg.files.includes(entry), `package.json files must include ${entry}`)
+  }
+  assert.ok(!pkg.files.includes('tools'), 'do not ship the bare tools directory (pycache)')
 
   const client = readFileSync(join(ROOT, 'client.js'), 'utf8')
   assert.match(client, /window\.__ModuleLoader__\.load\(\{/)

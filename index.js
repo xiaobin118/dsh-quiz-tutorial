@@ -733,27 +733,38 @@ function createDeckTools({ bundledDir, userDir } = {}) {
     output: { schema: OUTPUT_SCHEMA, render: toolRender },
     async execute(args) {
       const raw = typeof args?.deck === 'string' ? args.deck : ''
-      if (!raw.trim()) return { ok: false, message: 'deck 不能为空，需要完整的题集 JSON 字符串。' }
+      if (!raw.trim()) {
+        return { ok: false, code: 'invalid-argument', message: 'deck 不能为空，需要完整的题集 JSON 字符串。' }
+      }
       let parsed
       try {
         parsed = JSON.parse(raw)
       } catch (error) {
-        return { ok: false, message: `deck 不是合法 JSON：${error instanceof Error ? error.message : String(error)}` }
+        return {
+          ok: false,
+          code: 'invalid-json',
+          message: `deck 不是合法 JSON：${error instanceof Error ? error.message : String(error)}`,
+        }
       }
       const result = normalizeDeck(parsed)
       if (result.errors.length > 0) {
         return {
           ok: false,
+          code: 'invalid-deck',
           message: `题集校验失败，未写入：\n${result.errors.slice(0, 12).map((line) => `- ${line}`).join('\n')}`,
+          errors: result.errors.slice(0, 20),
         }
       }
       let saved
       try {
         saved = saveDeckFile(result.deck, userDir)
       } catch (error) {
-        if (error instanceof DeckSizeError) return { ok: false, message: `题集未写入：${error.message}` }
+        if (error instanceof DeckSizeError) {
+          return { ok: false, code: 'deck-too-large', message: `题集未写入：${error.message}`, limit: error.limit, bytes: error.bytes }
+        }
         return {
           ok: false,
+          code: 'write-failed',
           message: `保存失败：${error instanceof Error ? error.message : String(error)}`,
         }
       }
