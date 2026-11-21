@@ -450,13 +450,18 @@
             ? currentDeck.description
             : t('app.subtitle')
 
+      const headerKickerNodes = headerMode === 'practice' && currentDeck
+        ? [t('app.title'), ' · ', h(MathText, { key: 'subject', text: currentDeck.subject, t, inline: true })]
+        : [headerKicker]
+
       const header = h('header', { className: 'dshq-topbar' },
         h('div', { className: 'dshq-heading' },
           h('div', { className: 'dshq-logo' }, h(GridIcon, { size: 20 })),
           h('div', { style: { minWidth: 0 } },
-            h('div', { className: 'dshq-kicker' }, headerKicker),
-            h('h1', { className: 'dshq-title' }, headerTitle),
-            h('p', { className: 'dshq-sub' }, headerSub))),
+            h('div', { className: 'dshq-kicker' }, headerKickerNodes),
+            h('div', { className: 'dshq-title', role: 'heading', 'aria-level': 1 },
+              h(MathText, { text: headerTitle, t })),
+            h('div', { className: 'dshq-sub' }, h(MathText, { text: headerSub, t })))),
         h('div', { className: 'dshq-head-actions' },
           h('button', { type: 'button', className: 'dshq-button', onClick: onBack },
             h(ChevronIcon, { direction: 'left' }), t('app.back')),
@@ -536,8 +541,10 @@
               onClick: () => selectDeck(deck.id),
               'aria-current': view === 'practice' && !queue && deck.id === currentDeck.id ? 'page' : undefined,
             },
-            h('span', { className: 'dshq-deck-subject' }, `${deck.subject} · ${deck.source === 'user' ? t('app.sourceUser') : t('app.sourceBundled')}`),
-            h('span', { className: 'dshq-deck-title' }, deck.title),
+            h('div', { className: 'dshq-deck-subject' },
+              h(MathText, { text: deck.subject, t, inline: true }),
+              ' · ', deck.source === 'user' ? t('app.sourceUser') : t('app.sourceBundled')),
+            h('div', { className: 'dshq-deck-title' }, h(MathText, { text: deck.title, t, inline: true })),
             h('span', { className: 'dshq-deck-meta' }, t('deck.count', { n: deck.questions.length }),
               ' · ', t('deck.done', { done, n: deck.questions.length }))),
             h('button', {
@@ -606,12 +613,18 @@
               h('div', { className: 'dshq-qhead' },
                 h('span', { className: 'dshq-qindex' }, t('quiz.index', { n: displayIndex + 1 })),
                 h('span', { className: 'dshq-qof' }, t('quiz.of', { m: displayTotal })),
-                question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
-                question.topic ? h('span', { className: 'dshq-topic' }, question.topic) : null,
-                queue && practiceDeck ? h('span', { className: 'dshq-mistake-deck' }, practiceDeck.title) : null),
+                question.level
+                  ? h('div', { className: 'dshq-tag' }, h(MathText, { text: question.level, t, inline: true }))
+                  : null,
+                question.topic
+                  ? h('div', { className: 'dshq-topic' }, h(MathText, { text: question.topic, t, inline: true }))
+                  : null,
+                queue && practiceDeck
+                  ? h('div', { className: 'dshq-mistake-deck' }, h(MathText, { text: practiceDeck.title, t, inline: true }))
+                  : null),
               h('div', { className: 'dshq-stem' }, h(MathText, { text: question.prompt, t })),
               Array.isArray(question.inputs) && question.inputs.length > 0
-                ? h(Inputs, { inputs: question.inputs })
+                ? h(Inputs, { inputs: question.inputs, t })
                 : null,
               question.conditions
                 ? h('div', { className: 'dshq-conditions' },

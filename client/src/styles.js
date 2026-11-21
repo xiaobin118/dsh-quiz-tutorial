@@ -163,26 +163,9 @@ const CSS = `
 .dshq-topic { font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .dshq-stem { margin: 0; font-size: 13.5px; line-height: 1.7; }
 .dshq-inputs { display: flex; flex-wrap: wrap; gap: 16px 22px; align-items: center; }
-.dshq-matrix-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dshq-matrix-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-items: flex-start; }
+.dshq-matrix-block.is-small { gap: 2px; }
 .dshq-matrix-label { font-size: 10.5px; color: var(--dsw-alias-label-tertiary); letter-spacing: .04em; }
-.dshq-matrix {
-  position: relative;
-  display: grid; gap: 1px 10px;
-  padding: 4px 9px; justify-items: end;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px; line-height: 1.5;
-  font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary);
-}
-.dshq-matrix::before, .dshq-matrix::after {
-  content: ""; position: absolute; top: 0; bottom: 0; width: 5px;
-  border-top: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor;
-  opacity: .65;
-}
-.dshq-matrix::before { left: 0; border-left: 1.4px solid currentColor; }
-.dshq-matrix::after { right: 0; border-right: 1.4px solid currentColor; }
-.dshq-matrix.is-small { font-size: 11.5px; gap: 0 8px; padding: 3px 8px; }
-.dshq-cell { white-space: nowrap; }
 .dshq-scalar { display: flex; align-items: baseline; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .dshq-scalar-value { font-size: 13px; }
 .dshq-conditions {
@@ -223,6 +206,15 @@ const CSS = `
 .dshq-option.is-picked-wrong .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-state-error-primary); border-color: transparent; }
 .dshq-opt-body { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; }
 .dshq-opt-value { min-width: 0; font-size: 12.5px; text-align: left; }
+/* Matrices are KaTeX bmatrices: brackets and cell alignment come from KaTeX. */
+.dshq-matrix-math { min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.dshq-matrix-math .dshq-md > div { margin: 0; }
+.dshq-matrix-math .katex-display { margin: 0; }
+.dshq-matrix-math .katex { font-size: 1.06em; }
+.dshq-matrix-block.is-small .dshq-matrix-math .katex { font-size: .96em; }
+.dshq-md.is-inline { display: inline; }
+.dshq-md.is-inline > div { display: inline; }
+.dshq-md.is-inline > div > p { display: inline; margin: 0; }
 .dshq-opt-mark { flex: 0 0 auto; display: inline-flex; }
 .dshq-opt-mark.is-good { color: var(--dsw-alias-state-success-primary); }
 .dshq-opt-mark.is-bad { color: var(--dsw-alias-state-error-primary); }

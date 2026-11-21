@@ -86,6 +86,17 @@ The 1.0.1 work also replaced the local Unicode math renderer with DSH's KaTeX Ma
 added/updated decks and host errors visibly, and added regression tests for the trust fence, the
 byte-size contract, deck validation bounds, refresh diffs, and the LaTeX normalizer.
 
+## Changelog
+
+### 1.0.2
+
+- Matrices render as KaTeX `bmatrix` (brackets and column alignment come from KaTeX) instead of
+  a hand-drawn HTML grid.
+- Every deck-content surface now goes through the same KaTeX renderer: input/step matrix labels,
+  deck title/subject, question topic and level, conditions, options and notes. Labels such as
+  `卷积结果 C（$4\times4$）` no longer show raw `$...$`.
+- Matrices expose an `aria-label` (e.g. "矩阵 [2, 4; 4, 3]") as the accessible text for KaTeX.
+
 ## Contributing
 
 Contributions are welcome: new-subject decks, UI, zh/en translations, Host code, docs, and bug

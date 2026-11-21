@@ -341,6 +341,43 @@ function neutralizeMarkdownMedia(value) {
   }
 }
 
+/** Escape one user-authored cell for LaTeX text mode. */
+function latexEscapeCell(value) {
+  let out = ''
+  for (const ch of String(value ?? '')) {
+    if (ch === '\\') out += '\\textbackslash{}'
+    else if ('&%#$_{}'.includes(ch)) out += `\\${ch}`
+    else if (ch === '~') out += '\\textasciitilde{}'
+    else if (ch === '^') out += '\\textasciicircum{}'
+    else out += ch
+  }
+  return out
+}
+
+/** One numeric cell: ASCII digits and minus (KaTeX rejects U+2212). */
+function latexCell(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return latexEscapeCell(value)
+}
+
+/**
+ * Build a KaTeX bmatrix from a rectangular numeric/string matrix.
+ * @param matrix - rows of cells (already validated by the Host)
+ * @returns LaTeX source without delimiters: `\begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}`
+ */
+function matrixToLatex(matrix) {
+  const rows = (matrix ?? []).map((row) => row.map(latexCell).join(' & '))
+  return `\\begin{bmatrix} ${rows.join(' \\\\ ')} \\end{bmatrix}`
+}
+
+/** Plain, accessible view of a matrix: "[1, 2; 3, 4]". */
+function matrixToPlain(matrix) {
+  const rows = (matrix ?? []).map((row) => row.map((cell) => (
+    typeof cell === 'number' && Number.isFinite(cell) ? String(cell) : String(cell ?? '')
+  )).join(', '))
+  return `[${rows.join('; ')}]`
+}
+
 const LATEX_TO_TEXT = {
   alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', varepsilon: 'ε', epsilon: 'ε',
   zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ',

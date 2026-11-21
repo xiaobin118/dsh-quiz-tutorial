@@ -441,26 +441,9 @@ const CSS = `
 .dshq-topic { font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .dshq-stem { margin: 0; font-size: 13.5px; line-height: 1.7; }
 .dshq-inputs { display: flex; flex-wrap: wrap; gap: 16px 22px; align-items: center; }
-.dshq-matrix-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dshq-matrix-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-items: flex-start; }
+.dshq-matrix-block.is-small { gap: 2px; }
 .dshq-matrix-label { font-size: 10.5px; color: var(--dsw-alias-label-tertiary); letter-spacing: .04em; }
-.dshq-matrix {
-  position: relative;
-  display: grid; gap: 1px 10px;
-  padding: 4px 9px; justify-items: end;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px; line-height: 1.5;
-  font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary);
-}
-.dshq-matrix::before, .dshq-matrix::after {
-  content: ""; position: absolute; top: 0; bottom: 0; width: 5px;
-  border-top: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor;
-  opacity: .65;
-}
-.dshq-matrix::before { left: 0; border-left: 1.4px solid currentColor; }
-.dshq-matrix::after { right: 0; border-right: 1.4px solid currentColor; }
-.dshq-matrix.is-small { font-size: 11.5px; gap: 0 8px; padding: 3px 8px; }
-.dshq-cell { white-space: nowrap; }
 .dshq-scalar { display: flex; align-items: baseline; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .dshq-scalar-value { font-size: 13px; }
 .dshq-conditions {
@@ -501,6 +484,15 @@ const CSS = `
 .dshq-option.is-picked-wrong .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-state-error-primary); border-color: transparent; }
 .dshq-opt-body { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; }
 .dshq-opt-value { min-width: 0; font-size: 12.5px; text-align: left; }
+/* Matrices are KaTeX bmatrices: brackets and cell alignment come from KaTeX. */
+.dshq-matrix-math { min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.dshq-matrix-math .dshq-md > div { margin: 0; }
+.dshq-matrix-math .katex-display { margin: 0; }
+.dshq-matrix-math .katex { font-size: 1.06em; }
+.dshq-matrix-block.is-small .dshq-matrix-math .katex { font-size: .96em; }
+.dshq-md.is-inline { display: inline; }
+.dshq-md.is-inline > div { display: inline; }
+.dshq-md.is-inline > div > p { display: inline; margin: 0; }
 .dshq-opt-mark { flex: 0 0 auto; display: inline-flex; }
 .dshq-opt-mark.is-good { color: var(--dsw-alias-state-success-primary); }
 .dshq-opt-mark.is-bad { color: var(--dsw-alias-state-error-primary); }
@@ -762,15 +754,8 @@ function injectStyles() {
  * @module text
  * Tiny display helpers shared by the deck view and the accessible labels.
  *
- * Provides: cellText, letterOf.  Requires: nothing.
+ * Provides: letterOf.  Requires: nothing.
  */
-
-function cellText(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return String(value).replace('-', '\u2212')
-  }
-  return String(value).replace('-', '\u2212')
-}
 
 function letterOf(index) {
   return String.fromCharCode(65 + index)
@@ -1119,6 +1104,43 @@ function neutralizeMarkdownMedia(value) {
   }
 }
 
+/** Escape one user-authored cell for LaTeX text mode. */
+function latexEscapeCell(value) {
+  let out = ''
+  for (const ch of String(value ?? '')) {
+    if (ch === '\\') out += '\\textbackslash{}'
+    else if ('&%#$_{}'.includes(ch)) out += `\\${ch}`
+    else if (ch === '~') out += '\\textasciitilde{}'
+    else if (ch === '^') out += '\\textasciicircum{}'
+    else out += ch
+  }
+  return out
+}
+
+/** One numeric cell: ASCII digits and minus (KaTeX rejects U+2212). */
+function latexCell(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return latexEscapeCell(value)
+}
+
+/**
+ * Build a KaTeX bmatrix from a rectangular numeric/string matrix.
+ * @param matrix - rows of cells (already validated by the Host)
+ * @returns LaTeX source without delimiters: `\begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}`
+ */
+function matrixToLatex(matrix) {
+  const rows = (matrix ?? []).map((row) => row.map(latexCell).join(' & '))
+  return `\\begin{bmatrix} ${rows.join(' \\\\ ')} \\end{bmatrix}`
+}
+
+/** Plain, accessible view of a matrix: "[1, 2; 3, 4]". */
+function matrixToPlain(matrix) {
+  const rows = (matrix ?? []).map((row) => row.map((cell) => (
+    typeof cell === 'number' && Number.isFinite(cell) ? String(cell) : String(cell ?? '')
+  )).join(', '))
+  return `[${rows.join('; ')}]`
+}
+
 const LATEX_TO_TEXT = {
   alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', varepsilon: 'ε', epsilon: 'ε',
   zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ',
@@ -1343,7 +1365,7 @@ window.__ModuleLoader__.load({
  * CrossIcon, RefreshIcon, ChevronIcon, MatrixView, Inputs, OptionButton,
  * optionState, AnswerValue, VerdictCard, StepBlock, Solution, Notes.
  * Requires: h, React hooks (factory prologue); toLatexMarkdown/latexPlainText
- * (math.js); cellText/letterOf (text.js).
+ * (math.js); letterOf (text.js).
  */
 
     /**
@@ -1372,13 +1394,14 @@ window.__ModuleLoader__.load({
      * Unicode math) are normalized to `$...$` first; the only render path is
      * `MarkdownText`, never raw HTML.
      */
-    function MathText({ text, t }) {
+    function MathText({ text, t, inline }) {
       const source = neutralizeMarkdownMedia(toLatexMarkdown(text))
       const labels = useMemo(() => markdownLabels(t), [t])
+      const className = `dshq-md${inline ? ' is-inline' : ''}`
       if (MarkdownText === null) {
-        return h('div', { className: 'dshq-md is-fallback' }, source)
+        return h('div', { className: `${className} is-fallback` }, source)
       }
-      return h('div', { className: 'dshq-md' },
+      return h('div', { className },
         h(MarkdownText, { text: source, labels, variant: 'compact' }))
     }
 
@@ -1417,27 +1440,36 @@ window.__ModuleLoader__.load({
         h('path', { d: path, stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }))
     }
 
-    function MatrixView({ matrix, label, small }) {
-      const cols = matrix[0].length
-      return h('div', { className: 'dshq-matrix-block' },
-        label ? h('div', { className: 'dshq-matrix-label' }, label) : null,
+    /**
+     * A matrix is LaTeX now: KaTeX draws the brackets and aligns the cells.
+     * `aria-label` carries the plain value because KaTeX's HTML is visual only.
+     */
+    function MatrixView({ matrix, label, small, t, display }) {
+      const latex = matrixToLatex(matrix)
+      const source = display === true ? `$$${latex}$$` : `$${latex}$`
+      return h('div', { className: `dshq-matrix-block${small ? ' is-small' : ''}` },
+        label
+          ? h('div', { className: 'dshq-matrix-label' }, h(MathText, { text: label, t, inline: true }))
+          : null,
         h('div', {
-          className: `dshq-matrix${small ? ' is-small' : ''}`,
-          style: { gridTemplateColumns: `repeat(${cols}, minmax(18px, auto))` },
-        }, matrix.flatMap((row, rowIndex) => row.map((value, colIndex) => h('span', {
-          key: `${rowIndex}:${colIndex}`,
-          className: 'dshq-cell',
-        }, cellText(value))))))
+          className: 'dshq-matrix-math',
+          role: 'img',
+          'aria-label': `矩阵 ${matrixToPlain(matrix)}`,
+        }, h(MathText, { text: source, t, inline: true })))
     }
 
-    function Inputs({ inputs }) {
+    function Inputs({ inputs, t }) {
       return h('div', { className: 'dshq-inputs' }, inputs.map((input, index) => {
         if (Array.isArray(input.matrix)) {
-          return h(MatrixView, { key: index, matrix: input.matrix, label: input.label })
+          return h(MatrixView, {
+            key: index, matrix: input.matrix, label: input.label, t, display: true,
+          })
         }
         return h('div', { key: index, className: 'dshq-scalar' },
-          h('span', { className: 'dshq-matrix-label' }, input.label),
-          h('span', { className: 'dshq-scalar-value' }, `= ${cellText(input.scalar)}`))
+          h('div', { className: 'dshq-matrix-label' }, h(MathText, { text: input.label, t, inline: true })),
+          h('div', { className: 'dshq-scalar-value' }, h(MathText, {
+            text: `$= ${latexCell(input.scalar)}$`, t, inline: true,
+          })))
       }))
     }
 
@@ -1454,7 +1486,7 @@ window.__ModuleLoader__.load({
           ? h('span', { className: 'dshq-opt-mark is-bad' }, h(CrossIcon))
           : null
       const description = option.kind === 'matrix'
-        ? `矩阵 ${option.matrix.map((row) => row.map(cellText).join(', ')).join('; ')}`
+        ? `矩阵 ${matrixToPlain(option.matrix)}`
         : latexPlainText(option.text)
       return h('button', {
         type: 'button',
@@ -1466,7 +1498,7 @@ window.__ModuleLoader__.load({
       },
       h('span', { className: 'dshq-opt-letter', 'aria-hidden': true }, letterOf(index)),
       h('div', { className: 'dshq-opt-body' }, option.kind === 'matrix'
-        ? h(MatrixView, { matrix: option.matrix, small: true })
+        ? h(MatrixView, { matrix: option.matrix, small: true, t })
         : h('div', { className: 'dshq-opt-value' }, h(MathText, { text: option.text, t }))),
       mark)
     }
@@ -1485,7 +1517,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dshq-pick-value' },
         h('span', { className: chipClass }, letter),
         option.kind === 'matrix'
-          ? h(MatrixView, { matrix: option.matrix, small: true })
+          ? h(MatrixView, { matrix: option.matrix, small: true, t })
           : h('div', { className: 'dshq-pick-text' }, h(MathText, { text: option.text, t })))
     }
 
@@ -1517,7 +1549,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dshq-step-body' }, h(MathText, { text: step.body, t })),
         Array.isArray(step.matrices) && step.matrices.length > 0
           ? h('div', { className: 'dshq-step-matrices' }, step.matrices.map((entry, index) => h(MatrixView, {
-            key: index, matrix: entry.matrix, label: entry.label, small: true,
+            key: index, matrix: entry.matrix, label: entry.label, small: true, t,
           })))
           : null)
     }
@@ -1603,9 +1635,14 @@ window.__ModuleLoader__.load({
       const lastPick = Number.isInteger(rec.lastPick) ? rec.lastPick : null
       return h('article', { className: 'dshq-mistake' },
         h('div', { className: 'dshq-mistake-top' },
-          question && question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
-          h('span', { className: 'dshq-mistake-deck' }, deck ? deck.title : row.deckId),
-          question && question.topic ? h('span', { className: 'dshq-mistake-topic' }, question.topic) : null,
+          question && question.level
+            ? h('div', { className: 'dshq-tag' }, h(MathText, { text: question.level, t, inline: true }))
+            : null,
+          h('div', { className: 'dshq-mistake-deck' },
+            h(MathText, { text: deck ? deck.title : row.deckId, t, inline: true })),
+          question && question.topic
+            ? h('div', { className: 'dshq-mistake-topic' }, h(MathText, { text: question.topic, t, inline: true }))
+            : null,
           h('span', { className: 'dshq-mistake-badge' }, t('mistakes.wrongTimes', { n: rec.wrong || 1 })),
           mastered ? h('span', { className: 'dshq-mistake-done' }, t('mistakes.filter.mastered')) : null),
         question
@@ -2150,13 +2187,18 @@ window.__ModuleLoader__.load({
             ? currentDeck.description
             : t('app.subtitle')
 
+      const headerKickerNodes = headerMode === 'practice' && currentDeck
+        ? [t('app.title'), ' · ', h(MathText, { key: 'subject', text: currentDeck.subject, t, inline: true })]
+        : [headerKicker]
+
       const header = h('header', { className: 'dshq-topbar' },
         h('div', { className: 'dshq-heading' },
           h('div', { className: 'dshq-logo' }, h(GridIcon, { size: 20 })),
           h('div', { style: { minWidth: 0 } },
-            h('div', { className: 'dshq-kicker' }, headerKicker),
-            h('h1', { className: 'dshq-title' }, headerTitle),
-            h('p', { className: 'dshq-sub' }, headerSub))),
+            h('div', { className: 'dshq-kicker' }, headerKickerNodes),
+            h('div', { className: 'dshq-title', role: 'heading', 'aria-level': 1 },
+              h(MathText, { text: headerTitle, t })),
+            h('div', { className: 'dshq-sub' }, h(MathText, { text: headerSub, t })))),
         h('div', { className: 'dshq-head-actions' },
           h('button', { type: 'button', className: 'dshq-button', onClick: onBack },
             h(ChevronIcon, { direction: 'left' }), t('app.back')),
@@ -2236,8 +2278,10 @@ window.__ModuleLoader__.load({
               onClick: () => selectDeck(deck.id),
               'aria-current': view === 'practice' && !queue && deck.id === currentDeck.id ? 'page' : undefined,
             },
-            h('span', { className: 'dshq-deck-subject' }, `${deck.subject} · ${deck.source === 'user' ? t('app.sourceUser') : t('app.sourceBundled')}`),
-            h('span', { className: 'dshq-deck-title' }, deck.title),
+            h('div', { className: 'dshq-deck-subject' },
+              h(MathText, { text: deck.subject, t, inline: true }),
+              ' · ', deck.source === 'user' ? t('app.sourceUser') : t('app.sourceBundled')),
+            h('div', { className: 'dshq-deck-title' }, h(MathText, { text: deck.title, t, inline: true })),
             h('span', { className: 'dshq-deck-meta' }, t('deck.count', { n: deck.questions.length }),
               ' · ', t('deck.done', { done, n: deck.questions.length }))),
             h('button', {
@@ -2306,12 +2350,18 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dshq-qhead' },
                 h('span', { className: 'dshq-qindex' }, t('quiz.index', { n: displayIndex + 1 })),
                 h('span', { className: 'dshq-qof' }, t('quiz.of', { m: displayTotal })),
-                question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
-                question.topic ? h('span', { className: 'dshq-topic' }, question.topic) : null,
-                queue && practiceDeck ? h('span', { className: 'dshq-mistake-deck' }, practiceDeck.title) : null),
+                question.level
+                  ? h('div', { className: 'dshq-tag' }, h(MathText, { text: question.level, t, inline: true }))
+                  : null,
+                question.topic
+                  ? h('div', { className: 'dshq-topic' }, h(MathText, { text: question.topic, t, inline: true }))
+                  : null,
+                queue && practiceDeck
+                  ? h('div', { className: 'dshq-mistake-deck' }, h(MathText, { text: practiceDeck.title, t, inline: true }))
+                  : null),
               h('div', { className: 'dshq-stem' }, h(MathText, { text: question.prompt, t })),
               Array.isArray(question.inputs) && question.inputs.length > 0
-                ? h(Inputs, { inputs: question.inputs })
+                ? h(Inputs, { inputs: question.inputs, t })
                 : null,
               question.conditions
                 ? h('div', { className: 'dshq-conditions' },
@@ -2463,6 +2513,10 @@ window.__ModuleLoader__.load({
     function pluginFace() {
       return {
         inject: ['slots', 'locale', 'layout'],
+        // Test-only surface: `test/client.test.js` materializes the bundle with
+        // a recording React stub and asserts every deck-content field reaches
+        // MathText (matrix cells, input/step labels, topics, titles).
+        __test: { MathText, MatrixView, Inputs, matrixToLatex, matrixToPlain },
         apply(ctx) {
           ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-quiz: dictionaries')
           ctx.effect(() => injectStyles(), 'dsh-quiz: styles')

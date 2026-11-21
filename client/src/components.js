@@ -9,7 +9,7 @@
  * CrossIcon, RefreshIcon, ChevronIcon, MatrixView, Inputs, OptionButton,
  * optionState, AnswerValue, VerdictCard, StepBlock, Solution, Notes.
  * Requires: h, React hooks (factory prologue); toLatexMarkdown/latexPlainText
- * (math.js); cellText/letterOf (text.js).
+ * (math.js); letterOf (text.js).
  */
 
     /**
@@ -38,13 +38,14 @@
      * Unicode math) are normalized to `$...$` first; the only render path is
      * `MarkdownText`, never raw HTML.
      */
-    function MathText({ text, t }) {
+    function MathText({ text, t, inline }) {
       const source = neutralizeMarkdownMedia(toLatexMarkdown(text))
       const labels = useMemo(() => markdownLabels(t), [t])
+      const className = `dshq-md${inline ? ' is-inline' : ''}`
       if (MarkdownText === null) {
-        return h('div', { className: 'dshq-md is-fallback' }, source)
+        return h('div', { className: `${className} is-fallback` }, source)
       }
-      return h('div', { className: 'dshq-md' },
+      return h('div', { className },
         h(MarkdownText, { text: source, labels, variant: 'compact' }))
     }
 
@@ -83,27 +84,36 @@
         h('path', { d: path, stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }))
     }
 
-    function MatrixView({ matrix, label, small }) {
-      const cols = matrix[0].length
-      return h('div', { className: 'dshq-matrix-block' },
-        label ? h('div', { className: 'dshq-matrix-label' }, label) : null,
+    /**
+     * A matrix is LaTeX now: KaTeX draws the brackets and aligns the cells.
+     * `aria-label` carries the plain value because KaTeX's HTML is visual only.
+     */
+    function MatrixView({ matrix, label, small, t, display }) {
+      const latex = matrixToLatex(matrix)
+      const source = display === true ? `$$${latex}$$` : `$${latex}$`
+      return h('div', { className: `dshq-matrix-block${small ? ' is-small' : ''}` },
+        label
+          ? h('div', { className: 'dshq-matrix-label' }, h(MathText, { text: label, t, inline: true }))
+          : null,
         h('div', {
-          className: `dshq-matrix${small ? ' is-small' : ''}`,
-          style: { gridTemplateColumns: `repeat(${cols}, minmax(18px, auto))` },
-        }, matrix.flatMap((row, rowIndex) => row.map((value, colIndex) => h('span', {
-          key: `${rowIndex}:${colIndex}`,
-          className: 'dshq-cell',
-        }, cellText(value))))))
+          className: 'dshq-matrix-math',
+          role: 'img',
+          'aria-label': `矩阵 ${matrixToPlain(matrix)}`,
+        }, h(MathText, { text: source, t, inline: true })))
     }
 
-    function Inputs({ inputs }) {
+    function Inputs({ inputs, t }) {
       return h('div', { className: 'dshq-inputs' }, inputs.map((input, index) => {
         if (Array.isArray(input.matrix)) {
-          return h(MatrixView, { key: index, matrix: input.matrix, label: input.label })
+          return h(MatrixView, {
+            key: index, matrix: input.matrix, label: input.label, t, display: true,
+          })
         }
         return h('div', { key: index, className: 'dshq-scalar' },
-          h('span', { className: 'dshq-matrix-label' }, input.label),
-          h('span', { className: 'dshq-scalar-value' }, `= ${cellText(input.scalar)}`))
+          h('div', { className: 'dshq-matrix-label' }, h(MathText, { text: input.label, t, inline: true })),
+          h('div', { className: 'dshq-scalar-value' }, h(MathText, {
+            text: `$= ${latexCell(input.scalar)}$`, t, inline: true,
+          })))
       }))
     }
 
@@ -120,7 +130,7 @@
           ? h('span', { className: 'dshq-opt-mark is-bad' }, h(CrossIcon))
           : null
       const description = option.kind === 'matrix'
-        ? `矩阵 ${option.matrix.map((row) => row.map(cellText).join(', ')).join('; ')}`
+        ? `矩阵 ${matrixToPlain(option.matrix)}`
         : latexPlainText(option.text)
       return h('button', {
         type: 'button',
@@ -132,7 +142,7 @@
       },
       h('span', { className: 'dshq-opt-letter', 'aria-hidden': true }, letterOf(index)),
       h('div', { className: 'dshq-opt-body' }, option.kind === 'matrix'
-        ? h(MatrixView, { matrix: option.matrix, small: true })
+        ? h(MatrixView, { matrix: option.matrix, small: true, t })
         : h('div', { className: 'dshq-opt-value' }, h(MathText, { text: option.text, t }))),
       mark)
     }
@@ -151,7 +161,7 @@
       return h('div', { className: 'dshq-pick-value' },
         h('span', { className: chipClass }, letter),
         option.kind === 'matrix'
-          ? h(MatrixView, { matrix: option.matrix, small: true })
+          ? h(MatrixView, { matrix: option.matrix, small: true, t })
           : h('div', { className: 'dshq-pick-text' }, h(MathText, { text: option.text, t })))
     }
 
@@ -183,7 +193,7 @@
         h('div', { className: 'dshq-step-body' }, h(MathText, { text: step.body, t })),
         Array.isArray(step.matrices) && step.matrices.length > 0
           ? h('div', { className: 'dshq-step-matrices' }, step.matrices.map((entry, index) => h(MatrixView, {
-            key: index, matrix: entry.matrix, label: entry.label, small: true,
+            key: index, matrix: entry.matrix, label: entry.label, small: true, t,
           })))
           : null)
     }

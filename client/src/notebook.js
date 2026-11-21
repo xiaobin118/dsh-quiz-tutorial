@@ -36,9 +36,14 @@
       const lastPick = Number.isInteger(rec.lastPick) ? rec.lastPick : null
       return h('article', { className: 'dshq-mistake' },
         h('div', { className: 'dshq-mistake-top' },
-          question && question.level ? h('span', { className: 'dshq-tag' }, question.level) : null,
-          h('span', { className: 'dshq-mistake-deck' }, deck ? deck.title : row.deckId),
-          question && question.topic ? h('span', { className: 'dshq-mistake-topic' }, question.topic) : null,
+          question && question.level
+            ? h('div', { className: 'dshq-tag' }, h(MathText, { text: question.level, t, inline: true }))
+            : null,
+          h('div', { className: 'dshq-mistake-deck' },
+            h(MathText, { text: deck ? deck.title : row.deckId, t, inline: true })),
+          question && question.topic
+            ? h('div', { className: 'dshq-mistake-topic' }, h(MathText, { text: question.topic, t, inline: true }))
+            : null,
           h('span', { className: 'dshq-mistake-badge' }, t('mistakes.wrongTimes', { n: rec.wrong || 1 })),
           mastered ? h('span', { className: 'dshq-mistake-done' }, t('mistakes.filter.mastered')) : null),
         question

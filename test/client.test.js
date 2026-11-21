@@ -43,7 +43,7 @@ function loadClient({ primitives = { MarkdownText() {} } } = {}) {
   vm.runInContext(source, context, { filename: 'client.js' })
 
   const react = {
-    createElement: (...args) => ['el', ...args],
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
     Fragment: 'Fragment',
     useCallback: (fn) => fn,
     useEffect() {},
@@ -224,6 +224,137 @@ test('reduced-motion media query sits at CSS top level, not inside @keyframes', 
     assert.equal(depth, 0, `${label.trim()} must be top-level CSS (found depth ${depth})`)
   }
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.dshq-loader-dot \{ animation: none;/)
+})
+
+test('matrixToLatex builds a balanced bmatrix without HTML', () => {
+  const run = (matrix) => client.run(`matrixToLatex(${JSON.stringify(matrix)})`)
+  assert.equal(run([[1, 2], [3, 4]]), '\\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}')
+  assert.equal(run([[-1, 0.5], [2.25, -3]]), '\\begin{bmatrix} -1 & 0.5 \\\\ 2.25 & -3 \\end{bmatrix}')
+  const escaped = run([['a&b', 'c_d'], ['50%', '#1']])
+  assert.ok(escaped.includes('a\\&b'))
+  assert.ok(escaped.includes('c\\_d'))
+  assert.ok(escaped.includes('50\\%'))
+  assert.ok(escaped.includes('\\#1'))
+  const backslash = run([['x\\y']])
+  assert.ok(backslash.includes('\\textbackslash{}'))
+  for (const matrix of [[[1]], [[1, 2], [3, 4]], [['a']]]) {
+    const latex = run(matrix)
+    assert.equal((latex.match(/\\begin\{bmatrix\}/g) ?? []).length, 1)
+    assert.equal((latex.match(/\\end\{bmatrix\}/g) ?? []).length, 1)
+    assert.equal(/<[a-z]/i.test(latex), false)
+  }
+})
+
+test('matrixToPlain is the accessible text form', () => {
+  assert.equal(client.run('matrixToPlain([[0.7,-0.25],[1,-1]])'), '[0.7, -0.25; 1, -1]')
+})
+
+function collectMathText(node, MathText, found = []) {
+  if (node === null || node === undefined) return found
+  if (Array.isArray(node)) {
+    for (const item of node) collectMathText(item, MathText, found)
+    return found
+  }
+  if (node.type === MathText) {
+    found.push(node.props)
+    return found
+  }
+  if (node.children) collectMathText(node.children, MathText, found)
+  return found
+}
+
+test('MatrixView renders through KaTeX and renders its label through MathText', () => {
+  const { MatrixView, MathText } = client.exported.__test
+  const tree = MatrixView({
+    matrix: [[2, 4], [4, 3]], label: '卷积结果 C（$4\\times4$）', small: true, t: (key) => key,
+  })
+  const props = collectMathText(tree, MathText)
+  assert.ok(props.some((entry) => entry.text === '卷积结果 C（$4\\times4$）'), 'label must be Markdown, not plain text')
+  const body = props.find((entry) => entry.text.includes('bmatrix'))
+  assert.ok(body, 'matrix body must be LaTeX')
+  assert.ok(body.text.startsWith('$') && body.text.endsWith('$'))
+  assert.match(body.text, /\\begin\{bmatrix\} 2 & 4 \\\\ 4 & 3 \\end\{bmatrix\}/)
+  const bundle = readFileSync(join(ROOT, 'client.js'), 'utf8')
+  assert.match(bundle, /dshq-matrix-math/)
+  assert.match(bundle, /matrixToLatex\(matrix\)/)
+})
+
+test('MatrixView exposes a plain aria-label for the KaTeX visual', () => {
+  const { MatrixView, MathText } = client.exported.__test
+  const tree = MatrixView({ matrix: [[0.7, -0.25], [1, -1]], small: true, t: (key) => key })
+  const findLabel = (node) => {
+    if (Array.isArray(node)) return node.map(findLabel).find(Boolean)
+    if (node && node.type === 'div' && node.props?.['aria-label']) return node.props['aria-label']
+    return node?.children ? findLabel(node.children) : undefined
+  }
+  assert.equal(findLabel(tree), '矩阵 [0.7, -0.25; 1, -1]')
+})
+
+function findElement(node, type) {
+  if (node === null || node === undefined) return null
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = findElement(item, type)
+      if (hit) return hit
+    }
+    return null
+  }
+  if (node.type === type) return node
+  return node.children ? findElement(node.children, type) : null
+}
+
+test('Inputs sends matrix and scalar labels through MathText', () => {
+  const { Inputs, MatrixView, MathText } = client.exported.__test
+  const tree = Inputs({
+    t: (key) => key,
+    inputs: [
+      { label: 'X（$2\\times2$）', matrix: [[1, 2], [3, 4]] },
+      { label: '$b$', scalar: -1 },
+    ],
+  })
+  const matrixElement = findElement(tree, MatrixView)
+  assert.ok(matrixElement, 'matrix input renders through MatrixView')
+  assert.equal(matrixElement.props.label, 'X（$2\\times2$）', 'label travels as Markdown, not plain text')
+  assert.equal(matrixElement.props.display, true)
+  const matrixProps = collectMathText(MatrixView(matrixElement.props), MathText)
+  assert.ok(matrixProps.some((entry) => entry.text.includes('bmatrix')))
+  const scalarTexts = collectMathText(tree, MathText).map((entry) => entry.text)
+  assert.ok(scalarTexts.includes('$b$'), scalarTexts.join(' | '))
+  assert.ok(scalarTexts.includes('$= -1$'))
+})
+
+test('q1 CNN step labels and option matrices are KaTeX inputs, not raw $', () => {
+  const deck = JSON.parse(readFileSync(join(ROOT, 'decks', 'ml-cnn.json'), 'utf8'))
+  const q1 = deck.questions.find((question) => question.id === 'q1')
+  const labelled = q1.steps.flatMap((step) => step.matrices ?? []).filter((entry) => entry.label)
+  assert.ok(labelled.length > 0, 'q1 has a labelled intermediate matrix')
+  const { MatrixView, MathText } = client.exported.__test
+  for (const entry of labelled) {
+    const tree = MatrixView({ matrix: entry.matrix, label: entry.label, small: true, t: (key) => key })
+    const props = collectMathText(tree, MathText)
+    assert.ok(props.some((p) => p.text === entry.label), `${entry.label} must go through MathText`)
+    assert.ok(props.some((p) => p.text.includes('bmatrix')))
+  }
+  const optionMatrix = q1.options.find((option) => option.kind === 'matrix').matrix
+  const tree = MatrixView({ matrix: optionMatrix, small: true, t: (key) => key })
+  assert.ok(collectMathText(tree, MathText).some((p) => p.text.includes('bmatrix')))
+})
+
+test('no deck-content field is rendered as raw text any more', () => {
+  const sources = ['components.js', 'notebook.js', 'page.js']
+    .map((file) => readFileSync(join(ROOT, 'client', 'src', file), 'utf8'))
+    .join('\n')
+  for (const pattern of [
+    /h\('div', \{ className: 'dshq-matrix-label' \}, label\)/,
+    /, question\.topic\)/,
+    /, deck\.title\)/,
+    /, question\.level\)/,
+    /, practiceDeck\.title\)/,
+    /, input\.label\)/,
+    /, entry\.label\)/,
+  ]) {
+    assert.equal(pattern.test(sources), false, `raw deck-content render still matches ${pattern}`)
+  }
 })
 
 test('refresh diff reports added / updated / removed decks honestly', () => {

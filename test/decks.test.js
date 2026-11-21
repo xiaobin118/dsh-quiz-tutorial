@@ -76,7 +76,7 @@ test('bundled deck prose avoids markup the math renderer cannot show', () => {
 test('package, client bundle and cordis patch agree on one id', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
   assert.equal(pkg.name, 'dsh-quiz-tutorial')
-  assert.equal(pkg.version, '1.0.1')
+  assert.equal(pkg.version, '1.0.2')
   assert.equal(pkg.private, false)
   assert.equal(pkg.exports['./client'], './client.js')
   assert.equal(pkg.dsh.client.platform, 'web')
