@@ -29,7 +29,8 @@
     "tools/build_client.mjs",
     "tools/gen_decks.py",
     "test/*.js",
-    "test/*.mjs"
+    "test/*.mjs",
+    "screenshots.json"
   ],
   "dsh": {
     "bundle": {
