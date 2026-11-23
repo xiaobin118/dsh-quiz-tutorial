@@ -54,6 +54,32 @@ test('over-long text is an error, not a silent slice', () => {
   assert.ok(errors.some((line) => line.includes('超过 4000 字符上限')), errors.join('\n'))
 })
 
+test('control characters are rejected instead of saved as broken LaTeX', () => {
+  const tabbed = validDeck()
+  tabbed.questions[0].prompt = '输入是 $10\\times10$'.replace('\\times', '\t' + 'imes')
+  const { errors } = normalizeDeck(tabbed)
+  assert.ok(errors.some((line) => line.includes('控制字符')), errors.join('\n'))
+  assert.ok(errors.some((line) => line.includes('双写')), errors.join('\n'))
+
+  const multiline = validDeck()
+  multiline.questions[0].prompt = '第一行\n第二行'
+  assert.deepEqual(normalizeDeck(multiline).errors, [])
+
+  const crlf = validDeck()
+  crlf.questions[0].prompt = '第一行\r\n第二行'
+  assert.deepEqual(normalizeDeck(crlf).errors, [])
+
+  const brokenNabla = validDeck()
+  brokenNabla.questions[0].prompt = '求梯度 $' + '\n' + 'abla f$'
+  const { errors: nablaErrors } = normalizeDeck(brokenNabla)
+  assert.ok(nablaErrors.some((line) => line.includes('行内公式里有换行')), nablaErrors.join('\n'))
+
+  const brokenRight = validDeck()
+  brokenRight.questions[0].prompt = '括号 $' + '\r' + 'ight)$'
+  const { errors: rightErrors } = normalizeDeck(brokenRight)
+  assert.ok(rightErrors.some((line) => line.includes('控制字符')), rightErrors.join('\n'))
+})
+
 test('exactly-at-limit text is accepted untouched', () => {
   const deck = validDeck()
   deck.questions[0].prompt = 'x'.repeat(LIMITS.prompt)

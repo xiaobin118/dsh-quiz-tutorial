@@ -43,8 +43,9 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
   older decks is normalized to LaTeX on display.
 - **Mistake log**: wrong answers are collected automatically; filter, review the solution, redo,
   mark fixed, or review all open mistakes in a queue. A correct retry marks the entry fixed.
-- **`/skill dsh-quiz <topic>`**: the skill asks the agent to check existing decks, compute every
-  answer and intermediate value, then save a validated deck via `quiz_save_deck`.
+- **`/skill dsh-quiz <topic>`**: the skill asks the agent to check existing decks, build a
+  topic × cognitive-level blueprint, compute and independently re-check every answer and
+  intermediate value, then save a validated deck via `quiz_save_deck`.
 - **Delete decks**: the × on a deck card deletes it (and clears that deck's local answers and
   mistakes). The plugin ships no built-in decks, so every listed deck can be removed.
 - Keys `A–F` / `1–6` answer, `←` / `→` move between questions.
@@ -89,6 +90,11 @@ matrices with KaTeX `bmatrix` and routes every matrix/label through the same ren
 - Removed the bundled decks (`decks/`) and their generator: a fresh install starts empty and
   every deck comes from `/skill dsh-quiz` / `quiz_save_deck` or a user-written JSON file.
 - Deck deletion now applies to every deck; the hide/restore flow for built-in decks is gone.
+- Sharper authoring rules: a topic × cognitive-level blueprint, at least three item types,
+  balanced combination options, per-item re-solving, named distractor causes, no giveaway
+  cues, and no cross-item repeats.
+- The save validator now rejects LaTeX broken by JSON escapes (tab/form-feed/CR, newlines
+  inside inline math) and tells the author to double the backslashes.
 
 ### 1.0.2
 

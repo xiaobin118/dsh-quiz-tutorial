@@ -13,6 +13,8 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { __internal } from '../index.js'
+
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const read = (name) => readFileSync(join(ROOT, name), 'utf8')
 
@@ -96,4 +98,19 @@ test('the client bundle is generated from client/src and checked in', () => {
   const bundle = read('client.js')
   assert.match(bundle, /GENERATED FILE/)
   assert.match(bundle, /Source lives in client\/src/)
+})
+
+test('the skill example deck is valid against the real save validator', () => {
+  const skill = read('skill.md')
+  const block = skill.match(/```json\n([\s\S]*?)```/)
+  assert.ok(block, 'skill.md has a fenced JSON example')
+  const parsed = JSON.parse(block[1])
+  const { errors, deck } = __internal.normalizeDeck(parsed)
+  assert.deepEqual(errors, [])
+  assert.equal(deck.questions.length, 1)
+  const question = deck.questions[0]
+  assert.equal(question.answer, 0)
+  assert.equal(question.options.length, 3)
+  assert.equal(question.steps.length, 3)
+  assert.ok(question.level.length <= __internal.LIMITS.level)
 })

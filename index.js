@@ -87,7 +87,7 @@ const DECK_SCHEMA_HINT = `deck JSON 结构（必填项见括号）：
   "questions": [{
     "id": "q1",
     "topic": "考点名（必填）",
-    "level": "基础 | 进阶 | 挑战 | 概念",
+    "level": "难度·题型，如 进阶·找错（≤20 字）",
     "prompt": "题干（必填）",
     "inputs": [{"label": "X", "matrix": [[1,2],[3,4]]}, {"label": "b", "scalar": -1}],
     "conditions": "P=0、S=1 之类的补充条件",
@@ -104,10 +104,36 @@ const DECK_SCHEMA_HINT = `deck JSON 结构（必填项见括号）：
 公式写法（硬性）：所有数学必须写成 LaTeX 并用 $...$ 包住（独立公式用 $$...$$），例如 $\\mu_k$、$\\sigma_k^2$、$\\hat{x}_i$、
 $H_{out} = \\lfloor(H + 2P - K)/S\\rfloor + 1$、$$J = \\sum_{k=1}^{K} \\|x - \\mu_k\\|^2$$。
 不要用 Unicode 数学符号（μ、σ²、Σ_{k}、×）代替 LaTeX，也不要在 $...$ 外写裸 _ / ^；渲染器是 KaTeX，不执行 HTML、不加载远程图片/链接。
-单套题集序列化后上限 512 KiB，超过会在写入前被拒绝。`
+单套题集序列化后上限 512 KiB，超过会在写入前被拒绝。
+出题质量：先列考点蓝图；每题答案与中间量先独立复算；每个错误选项的 note 写具体错因；正确项不要最长、最含糊或总在同一位置。`
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** C0 controls except LF: these are almost always a LaTeX escape eaten by JSON. */
+const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u000d\t]/
+
+/** `$...$` must stay on one line; a newline here is usually a broken `\nabla`. */
+function inlineMathHasNewline(text) {
+  let i = 0
+  while (i < text.length) {
+    if (text[i] !== '$') {
+      i += 1
+      continue
+    }
+    if (text[i + 1] === '$') {
+      const close = text.indexOf('$$', i + 2)
+      if (close === -1) return false
+      i = close + 2
+      continue
+    }
+    const close = text.indexOf('$', i + 1)
+    if (close === -1) return false
+    if (text.slice(i + 1, close).includes('\n')) return true
+    i = close + 1
+  }
+  return false
 }
 
 /**
@@ -116,9 +142,16 @@ function isRecord(value) {
  */
 function bounded(value, max, path, errors) {
   if (typeof value !== 'string') return ''
-  const trimmed = value.trim()
+  // Normalize CRLF first so only a stray CR (a broken `\right`) is rejected.
+  const trimmed = value.replace(/\r\n/g, '\n').trim()
   if (trimmed.length > max) {
     errors.push(`${path} 超过 ${max} 字符上限（当前 ${trimmed.length} 字符），请缩短后重试`)
+  }
+  if (CONTROL_CHARS.test(trimmed)) {
+    errors.push(`${path} 含有控制字符（如制表符）；JSON 里 LaTeX 反斜杠要双写：\\\\times 而不是 \\times`)
+  }
+  if (inlineMathHasNewline(trimmed)) {
+    errors.push(`${path} 的行内公式里有换行；\\nabla、\\neq 这类命令在 JSON 里也要写双反斜杠`)
   }
   return trimmed
 }
