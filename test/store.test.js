@@ -3,7 +3,6 @@
  *   - save measures UTF-8 bytes and refuses an oversized deck before writing;
  *   - read measures bytes too, so a saved deck is always listable;
  *   - the file name must equal `<id>.json`, so list/save/delete address one file;
- *   - user decks override bundled decks, and deleting restores the bundled one.
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -48,7 +47,7 @@ test('save -> list -> delete round trip', () => {
     assert.equal(saved.path, join(dirs.userDir, 'sample.json'))
     assert.ok(saved.bytes > 0)
 
-    const listed = loadDecks({ bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    const listed = loadDecks({ userDir: dirs.userDir })
     assert.deepEqual(listed.errors, [])
     assert.deepEqual(listed.decks.map((deck) => deck.id), ['sample'])
     assert.equal(listed.decks[0].source, 'user')
@@ -125,42 +124,16 @@ test('a file whose name disagrees with its id is skipped, so delete stays honest
     writeFileSync(join(dirs.userDir, 'bar.json'), JSON.stringify(sampleDeck('foo')))
     writeFileSync(join(dirs.userDir, 'foo.json'), JSON.stringify(sampleDeck('foo')))
 
-    const listed = loadDecks({ bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    const listed = loadDecks({ userDir: dirs.userDir })
     assert.deepEqual(listed.decks.map((deck) => deck.id), ['foo'])
     assert.equal(listed.decks[0].fileName, 'foo.json')
     assert.ok(listed.errors.some((line) => line.includes('文件名必须与题集 id 一致')), listed.errors.join('\n'))
 
     // Deleting removes the deck the list actually served.
     assert.equal(deleteUserDeck('foo', dirs.userDir).ok, true)
-    const after = loadDecks({ bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    const after = loadDecks({ userDir: dirs.userDir })
     assert.deepEqual(after.decks, [])
     assert.ok(after.errors.some((line) => line.includes('bar.json')), 'the stray file stays reported')
-  } finally {
-    dirs.cleanup()
-  }
-})
-
-test('a user deck overrides a bundled deck and deleting restores it', () => {
-  const dirs = tempDirs()
-  try {
-    const bundled = sampleDeck('shared')
-    bundled.title = '内置版本'
-    saveDeckFile(bundled, dirs.bundledDir)
-
-    const override = sampleDeck('shared')
-    override.title = '用户覆盖版本'
-    saveDeckFile(override, dirs.userDir)
-
-    const listed = loadDecks({ bundledDir: dirs.bundledDir, userDir: dirs.userDir })
-    assert.equal(listed.decks.length, 1)
-    assert.equal(listed.decks[0].title, '用户覆盖版本')
-    assert.equal(listed.decks[0].source, 'user')
-
-    assert.equal(deleteUserDeck('shared', dirs.userDir).ok, true)
-    const restored = loadDecks({ bundledDir: dirs.bundledDir, userDir: dirs.userDir })
-    assert.equal(restored.decks.length, 1)
-    assert.equal(restored.decks[0].title, '内置版本')
-    assert.equal(restored.decks[0].source, 'bundled')
   } finally {
     dirs.cleanup()
   }

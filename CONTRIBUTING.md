@@ -15,15 +15,12 @@ Thanks for helping! · 欢迎参与！
 ## 开发环境
 
 - Node.js 22+（与 dsh 一致）
-- Python 3（只有 `tools/gen_decks.py` 需要，纯标准库）
 
 没有构建步骤，没有第三方运行时依赖。检查：
 
 ```sh
 npm run check                        # node --check index.js && node --check client.js
 npm test                             # node --test test/（无依赖、无网络）
-python3 tools/gen_decks.py           # 重新生成并验算内置题集
-python3 tools/gen_decks.py --check   # 只校验仓库里的题集与脚本输出一致
 ```
 
 结构：
@@ -32,9 +29,7 @@ python3 tools/gen_decks.py --check   # 只校验仓库里的题集与脚本输�
 index.js            Host：GET /dsh-quiz/decks、POST /dsh-quiz/decks/delete、quiz_* 工具、dsh-quiz 技能
 client.js           Web UI 构建产物（DSH 只加载它；改源码后跑 npm run build:client）
 client/src/         Web UI 源码：base·locale·styles·text·math·state + components·notebook·page·panel
-decks/*.json        内置题集（随包分发，只读）
 skill.md            /skill 出题规范
-tools/gen_decks.py  内置题集的生成与断言脚本
 tools/build_client.mjs  client/src -> client.js 的零依赖拼接脚本
 test/*.test.js      node:test 回归测试（校验上限、存储契约、路由栅栏、客户端）
 docs/deck-format.md 题集字段与约束
@@ -42,7 +37,7 @@ docs/deck-format.md 题集字段与约束
 
 DSH 客户端模块系统只服务一个 bundle 且只把 `require` 解析到平台模块表，所以源码按模块拆分、
 产物仍是单文件：改 `client/src/*.js` 后必须 `npm run build:client`；`npm run check` 会检查产物
-是否与源码同步（和 `gen_decks.py --check` 同一思路）。
+是否与源码同步。
 
 Host 代码更新后必须重启 `dsh web`；只改 `client.js` 时刷新页面即可。
 
@@ -60,15 +55,16 @@ Host 代码更新后必须重启 `dsh web`；只改 `client.js` 时刷新页面�
 - 计算题要有尺寸/公式、代入、中间结果、验算；矩阵放进 `matrices`；
 - `options` 2–6 个，`answer` 是 0 基下标；错误选项尽量对应真实易错点；
 - 概念题不需要矩阵，但 `steps` 要写判断依据与易错点；
-- 公式用 Unicode 或 `$...$` + `_{...}`/`^{...}` 写；支持常见 LaTeX 命令，但不支持
-  `\begin{}`/`\end{}` 环境、HTML 或 Markdown 链接（见 [docs/deck-format.md](docs/deck-format.md)）；
+- 公式必须写 LaTeX 并用 `$...$` / `$$...$$` 包住（KaTeX，支持 `bmatrix`）；不要用 Unicode
+  数学符号或裸 `_`/`^`（见 [docs/deck-format.md](docs/deck-format.md)）；
 - 手写题集放在 `~/.dsh/dsh-quiz/decks/<id>.json`，文件名必须等于 `<id>`；单套 ≤ 512 KiB；
-- 内置题集由 `tools/gen_decks.py` 生成（干扰项也必须由脚本计算）；加数值题时优先在脚本里
-  加用例并跑通。
+- 插件不预置内置题集；题集由 `/skill dsh-quiz` / `quiz_save_deck` 生成，或手写到
+  `~/.dsh/dsh-quiz/decks/<id>.json`。所有题集都可以在页面里删除。
 
 ## 代码约定
 
-- `client.js` 不 `require` 任何 Harness Client 包（只用 `react`），样式只用 `--dsw-alias-*` token；
+- `client.js` 只 `require('react')` 与平台提供的 `@deepseek-ai/dsh-client-ui-primitives`
+  （`MarkdownText`/KaTeX），不引入其他运行时依赖；样式只用 `--dsw-alias-*` token；
 - 可见文案走 `ctx.locale`，zh/en 两份字典都要加；
 - Host 不引入第三方依赖；失败统一返回 `{ ok: false, code, message }`：路由错误就是这个形状，
   `quiz_save_deck` / `quiz_delete_deck` 的工具结果也一样（`invalid-argument`、`invalid-json`、
@@ -76,14 +72,13 @@ Host 代码更新后必须重启 `dsh web`；只改 `client.js` 时刷新页面�
   成功结果至少含 `{ ok: true, message }`，可以带 `path` / `bytes` / `decks` / `errors` 等附加字段；
 - 两条 Web 路由必须先过 dsh 的信任栅栏（`ctx.connection.requestRejection(req)`），
   再检查方法 / `content-type`，最后才读 body；空 `Host` 一律拒绝；没有 `connection` 时 fail-closed。
-  删除只允许用户题集，不允许删内置题集；
 - 删除/列表/保存按同一个文件名契约工作：文件名 == `<id>.json`；
 - 不添加遥测、外部请求或凭据读取；题集文本只作为 React 文本渲染，不解析 HTML。
 
 ## PR 流程
 
 1. Fork 并开分支；
-2. 改代码/题集，跑 `npm run check`、`npm test`（题集再跑 `python3 tools/gen_decks.py --check`）；
+2. 改代码，跑 `npm run check`、`npm test`；
 3. PR 里写清楚：改了什么、怎么验证的、截图（UI 改动）；
 4. 一个 PR 聚焦一件事。
 

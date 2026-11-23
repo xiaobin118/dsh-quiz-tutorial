@@ -12,7 +12,6 @@ export function tempDirs() {
   return {
     root,
     userDir: join(root, 'user'),
-    bundledDir: join(root, 'bundled'),
     cleanup() {
       rmSync(root, { recursive: true, force: true })
     },

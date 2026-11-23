@@ -1,16 +1,13 @@
 /**
  * @module state
  * Pure progress/queue helpers over the persisted shape:
- * `{ deckId, qi, answers, mistakes, hiddenDecks }`.
+ * `{ deckId, qi, answers, mistakes, tab, view }`.
  *
  * Every function here is pure and side-effect free; the page component owns the
- * React state.  They are also the regression surface for the audit fixes
- * (deleting a deck purges its answers/mistakes/hidden flag; opening a mistake
- * from a hidden deck makes that deck visible again).
+ * React state.
  *
- * Provides: withoutDeckAnswers, withoutDeckMistakes, withoutHiddenDeck,
- * withDeckVisible, readStored, MISTAKE_SEP, mistakeKey, splitMistakeKey,
- * normalizeHiddenDecks, normalizeMistakes, resolveQueueItem, mistakeRows,
+ * Provides: withoutDeckAnswers, withoutDeckMistakes, readStored, MISTAKE_SEP,
+ * mistakeKey, splitMistakeKey, normalizeMistakes, resolveQueueItem, mistakeRows,
  * formatTime, deckFingerprint, diffDecks, refreshSummary, fetchDecks.
  * Requires: STORAGE_KEY (base.js).
  */
@@ -29,14 +26,6 @@ function withoutDeckMistakes(mistakes, deckId) {
     next[key] = record
   }
   return next
-}
-
-function withoutHiddenDeck(hiddenDecks, deckId) {
-  return hiddenDecks.filter((id) => id !== deckId)
-}
-
-function withDeckVisible(hiddenDecks, deckId) {
-  return hiddenDecks.includes(deckId) ? withoutHiddenDeck(hiddenDecks, deckId) : hiddenDecks
 }
 
 function readStored() {
@@ -61,11 +50,6 @@ function splitMistakeKey(key) {
   const at = key.indexOf(MISTAKE_SEP)
   if (at <= 0 || at + MISTAKE_SEP.length >= key.length) return null
   return [key.slice(0, at), key.slice(at + MISTAKE_SEP.length)]
-}
-
-function normalizeHiddenDecks(raw) {
-  if (!Array.isArray(raw)) return []
-  return [...new Set(raw.filter((id) => typeof id === 'string' && id !== ''))]
 }
 
 function normalizeMistakes(raw) {
@@ -149,7 +133,7 @@ function refreshSummary(previous, next, at = Date.now()) {
   return {
     at,
     total: list.length,
-    userCount: list.filter((deck) => deck.source === 'user').length,
+    userCount: list.length,
     added: diff.added,
     updated: diff.updated,
     removed: diff.removed,

@@ -110,7 +110,7 @@ const zh = {
   'markdown.footnotes': '脚注',
   'refresh.failed': '题集刷新失败',
   'refresh.retry': '重试',
-  'refresh.result': '已刷新：{total} 套题集（{users} 套用户题集）',
+  'refresh.result': '已刷新：{total} 套题集',
   'refresh.added': '新增 {n}',
   'refresh.updated': '更新 {n}',
   'refresh.removed': '移除 {n}',
@@ -118,24 +118,16 @@ const zh = {
   'refresh.lastAt': '最近刷新 {time}',
   'app.empty': '还没有题集',
   'app.emptyHint': '让 DSH 按复习内容出题：在对话里说「用 quiz_save_deck 为刚才复习的内容出一套题」，保存后回到这里点「刷新题集」。',
-  'app.sourceUser': '自建',
-  'app.sourceBundled': '内置',
   'app.refreshing': '刷新中…',
   'rail.title': '题集',
-  'rail.hint': '出题：在对话里输入 /skill dsh-quiz 主题；卡片右上角 × 可删除自建题集或隐藏内置题集。',
+  'rail.hint': '出题：在对话里输入 /skill dsh-quiz 主题；卡片右上角 × 可删除题集。',
   'deck.count': '{n} 题',
   'deck.done': '{done}/{n}',
   'deck.remove': '删除题集',
-  'deck.removeConfirm': '删除自建题集「{title}」？题集文件会从磁盘删除，无法恢复。',
+  'deck.removeConfirm': '删除题集「{title}」？题集文件会从磁盘删除，无法恢复。',
   'deck.removeFailed': '删除题集失败',
   'deck.removing': '删除中…',
   'deck.restartRequired': '当前宿主还没有加载删除接口，请重启 DSH 后再试。',
-  'deck.hide': '隐藏题集',
-  'deck.hideConfirm': '从列表隐藏内置题集「{title}」？文件仍在安装包里，可随时恢复。',
-  'deck.restoreHidden': '恢复隐藏的题集（{n}）',
-  'deck.allHidden': '题集都被隐藏了',
-  'deck.allHiddenHint': '内置题集被隐藏后可以随时恢复；自建题集文件仍保留在磁盘上。',
-  'deck.restore': '恢复全部',
   'quiz.index': '第 {n} 题',
   'quiz.of': '共 {m} 题',
   'quiz.prev': '上一题',
@@ -220,7 +212,7 @@ const en = {
   'markdown.footnotes': 'Footnotes',
   'refresh.failed': 'Could not refresh decks',
   'refresh.retry': 'Retry',
-  'refresh.result': 'Refreshed: {total} decks ({users} custom)',
+  'refresh.result': 'Refreshed: {total} decks',
   'refresh.added': 'added {n}',
   'refresh.updated': 'updated {n}',
   'refresh.removed': 'removed {n}',
@@ -228,24 +220,16 @@ const en = {
   'refresh.lastAt': 'last refresh {time}',
   'app.empty': 'No decks yet',
   'app.emptyHint': 'Ask DSH to build a deck from the current review context: "use quiz_save_deck for the topic we just reviewed", then press Refresh.',
-  'app.sourceUser': 'custom',
-  'app.sourceBundled': 'built-in',
   'app.refreshing': 'Refreshing…',
   'rail.title': 'Decks',
-  'rail.hint': 'Generate: send /skill dsh-quiz <topic>; use the × on a deck card to delete a custom deck or hide a built-in one.',
+  'rail.hint': 'Generate: send /skill dsh-quiz <topic>; use the × on a deck card to delete it.',
   'deck.count': '{n} questions',
   'deck.done': '{done}/{n}',
   'deck.remove': 'Remove deck',
-  'deck.removeConfirm': 'Delete custom deck "{title}"? The deck file is removed from disk and cannot be restored.',
+  'deck.removeConfirm': 'Delete deck "{title}"? The deck file is removed from disk and cannot be restored.',
   'deck.removeFailed': 'Could not remove deck',
   'deck.removing': 'Removing…',
   'deck.restartRequired': 'This host has not loaded the removal endpoint yet. Restart DSH and try again.',
-  'deck.hide': 'Hide deck',
-  'deck.hideConfirm': 'Hide built-in deck "{title}" from the list? The package file is untouched and can be restored anytime.',
-  'deck.restoreHidden': 'Restore hidden decks ({n})',
-  'deck.allHidden': 'All decks are hidden',
-  'deck.allHiddenHint': 'Built-in decks can be restored at any time; custom deck files stay on disk.',
-  'deck.restore': 'Restore all',
   'quiz.index': 'Question {n}',
   'quiz.of': 'of {m}',
   'quiz.prev': 'Previous',
@@ -1177,16 +1161,13 @@ function latexPlainText(value) {
 /**
  * @module state
  * Pure progress/queue helpers over the persisted shape:
- * `{ deckId, qi, answers, mistakes, hiddenDecks }`.
+ * `{ deckId, qi, answers, mistakes, tab, view }`.
  *
  * Every function here is pure and side-effect free; the page component owns the
- * React state.  They are also the regression surface for the audit fixes
- * (deleting a deck purges its answers/mistakes/hidden flag; opening a mistake
- * from a hidden deck makes that deck visible again).
+ * React state.
  *
- * Provides: withoutDeckAnswers, withoutDeckMistakes, withoutHiddenDeck,
- * withDeckVisible, readStored, MISTAKE_SEP, mistakeKey, splitMistakeKey,
- * normalizeHiddenDecks, normalizeMistakes, resolveQueueItem, mistakeRows,
+ * Provides: withoutDeckAnswers, withoutDeckMistakes, readStored, MISTAKE_SEP,
+ * mistakeKey, splitMistakeKey, normalizeMistakes, resolveQueueItem, mistakeRows,
  * formatTime, deckFingerprint, diffDecks, refreshSummary, fetchDecks.
  * Requires: STORAGE_KEY (base.js).
  */
@@ -1205,14 +1186,6 @@ function withoutDeckMistakes(mistakes, deckId) {
     next[key] = record
   }
   return next
-}
-
-function withoutHiddenDeck(hiddenDecks, deckId) {
-  return hiddenDecks.filter((id) => id !== deckId)
-}
-
-function withDeckVisible(hiddenDecks, deckId) {
-  return hiddenDecks.includes(deckId) ? withoutHiddenDeck(hiddenDecks, deckId) : hiddenDecks
 }
 
 function readStored() {
@@ -1237,11 +1210,6 @@ function splitMistakeKey(key) {
   const at = key.indexOf(MISTAKE_SEP)
   if (at <= 0 || at + MISTAKE_SEP.length >= key.length) return null
   return [key.slice(0, at), key.slice(at + MISTAKE_SEP.length)]
-}
-
-function normalizeHiddenDecks(raw) {
-  if (!Array.isArray(raw)) return []
-  return [...new Set(raw.filter((id) => typeof id === 'string' && id !== ''))]
 }
 
 function normalizeMistakes(raw) {
@@ -1325,7 +1293,7 @@ function refreshSummary(previous, next, at = Date.now()) {
   return {
     at,
     total: list.length,
-    userCount: list.filter((deck) => deck.source === 'user').length,
+    userCount: list.length,
     added: diff.added,
     updated: diff.updated,
     removed: diff.removed,
@@ -1753,7 +1721,6 @@ window.__ModuleLoader__.load({
       const [qi, setQi] = useState(() => (Number.isInteger(initial?.qi) && initial.qi >= 0 ? initial.qi : 0))
       const [answers, setAnswers] = useState(() => (initial?.answers && typeof initial.answers === 'object' ? initial.answers : {}))
       const [mistakes, setMistakes] = useState(() => normalizeMistakes(initial?.mistakes))
-      const [hiddenDecks, setHiddenDecks] = useState(() => normalizeHiddenDecks(initial?.hiddenDecks))
       const [tab, setTab] = useState(() => (initial?.tab === 'notes' ? 'notes' : 'quiz'))
       const [view, setView] = useState(() => (initial?.view === 'mistakes' ? 'mistakes' : 'practice'))
       const [filter, setFilter] = useState('open')
@@ -1774,10 +1741,7 @@ window.__ModuleLoader__.load({
         setRefreshing(true)
         try {
           const data = await fetchDecks(signal)
-          const ordered = [...data.decks].sort((left, right) => {
-            if (left.source !== right.source) return left.source === 'user' ? -1 : 1
-            return String(left.id).localeCompare(String(right.id))
-          })
+          const ordered = [...data.decks].sort((left, right) => String(left.id).localeCompare(String(right.id)))
           const report = refreshSummary(decksRef.current, ordered)
           decksRef.current = ordered
           setSnapshot({ status: 'ready', decks: ordered, errors: Array.isArray(data.errors) ? data.errors : [] })
@@ -1814,16 +1778,10 @@ window.__ModuleLoader__.load({
       }, [refreshReport])
 
       const decks = snapshot.decks
-      // Hide is a bundled-deck feature; a stale id left in localStorage must not
-      // hide a user deck that happens to reuse it (M12).
-      const visibleDecks = useMemo(
-        () => decks.filter((deck) => !(deck.source === 'bundled' && hiddenDecks.includes(deck.id))),
-        [decks, hiddenDecks],
-      )
       const currentDeck = useMemo(() => {
-        if (visibleDecks.length === 0) return null
-        return visibleDecks.find((deck) => deck.id === deckId) ?? visibleDecks[0]
-      }, [visibleDecks, deckId])
+        if (decks.length === 0) return null
+        return decks.find((deck) => deck.id === deckId) ?? decks[0]
+      }, [decks, deckId])
 
       useEffect(() => {
         if (!currentDeck) return
@@ -1834,12 +1792,12 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         try {
           window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            v: 2, deckId, qi, answers, mistakes, hiddenDecks, tab, view,
+            v: 2, deckId, qi, answers, mistakes, tab, view,
           }))
         } catch {
           /* storage may be unavailable */
         }
-      }, [deckId, qi, answers, mistakes, hiddenDecks, tab, view])
+      }, [deckId, qi, answers, mistakes, tab, view])
 
       const rows = useMemo(() => mistakeRows(decks, mistakes), [decks, mistakes])
       const counts = useMemo(() => {
@@ -2014,9 +1972,6 @@ window.__ModuleLoader__.load({
             return { ...previous, [row.deckId]: deckState }
           })
         }
-        // A mistake can outlive a hidden bundled deck; unhide it first so
-        // `currentDeck` resolves to the deck the row actually belongs to (I2).
-        setHiddenDecks((previous) => withDeckVisible(previous, row.deckId))
         const index = row.deck.questions.findIndex((item) => item.id === row.qid)
         setDeckId(row.deckId)
         setQi(index >= 0 ? index : 0)
@@ -2069,24 +2024,8 @@ window.__ModuleLoader__.load({
 
       const refresh = () => { load(undefined, { announce: true }) }
 
-      function hideDeck(deck) {
-        if (!deck || deck.source !== 'bundled') return
-        let confirmed = false
-        try {
-          if (typeof window.confirm === 'function') confirmed = window.confirm(t('deck.hideConfirm', { title: deck.title }))
-        } catch {
-          confirmed = false
-        }
-        if (!confirmed) return
-        setHiddenDecks((previous) => (previous.includes(deck.id) ? previous : [...previous, deck.id]))
-      }
-
-      function restoreHiddenDecks() {
-        setHiddenDecks([])
-      }
-
       async function removeDeck(deck) {
-        if (!deck || deck.source !== 'user' || removing !== null) return
+        if (!deck || removing !== null) return
         let confirmed = false
         try {
           if (typeof window.confirm === 'function') confirmed = window.confirm(t('deck.removeConfirm', { title: deck.title }))
@@ -2111,11 +2050,9 @@ window.__ModuleLoader__.load({
             }
             throw new Error(data?.message || data?.error || `HTTP ${response.status}`)
           }
-          // The deck's answers/mistakes/hidden flag belong to that deck; a
-          // bundled deck restored by this delete must start clean (I3).
+          // The deck's answers and mistakes belong to that deck.
           setAnswers((previous) => withoutDeckAnswers(previous, deck.id))
           setMistakes((previous) => withoutDeckMistakes(previous, deck.id))
-          setHiddenDecks((previous) => withoutHiddenDeck(previous, deck.id))
           await load()
           setDeckId((previous) => (previous === deck.id ? null : previous))
         } catch (error) {
@@ -2241,19 +2178,11 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'dshq-button is-primary', onClick: refresh }, h(RefreshIcon), t('app.retry'))))
       }
       if (!currentDeck) {
-        const hiddenCount = decks.filter((deck) => hiddenDecks.includes(deck.id)).length
         return h('div', { className: 'dshq-page' }, header,
           h('div', { className: 'dshq-empty', style: { flex: 1 } },
-            hiddenCount > 0
-              ? h(React.Fragment, null,
-                h('h2', null, t('deck.allHidden')),
-                h('p', null, t('deck.allHiddenHint')),
-                h('button', { type: 'button', className: 'dshq-button is-primary', onClick: restoreHiddenDecks }, t('deck.restore')),
-                h('button', { type: 'button', className: 'dshq-button', onClick: refresh }, h(RefreshIcon), t('app.refresh')))
-              : h(React.Fragment, null,
-                h('h2', null, t('app.empty')),
-                h('p', null, t('app.emptyHint')),
-                h('button', { type: 'button', className: 'dshq-button', onClick: refresh }, h(RefreshIcon), t('app.refresh')))))
+            h('h2', null, t('app.empty')),
+            h('p', null, t('app.emptyHint')),
+            h('button', { type: 'button', className: 'dshq-button', onClick: refresh }, h(RefreshIcon), t('app.refresh'))))
       }
 
       const rail = h('nav', { className: 'dshq-rail', 'aria-label': t('rail.title') },
@@ -2268,7 +2197,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'dshq-rail-note-meta' }, t('mistakes.openCount', { n: counts.open }))),
         counts.open > 0 ? h('span', { className: 'dshq-rail-badge' }, counts.open) : null),
         h('div', { className: 'dshq-rail-title' }, t('rail.title')),
-        visibleDecks.map((deck) => {
+        decks.map((deck) => {
           const state = answers[deck.id] ?? {}
           const done = deck.questions.reduce((count, item) => (state[item.id] !== undefined ? count + 1 : count), 0)
           return h('div', { key: deck.id, className: 'dshq-deck-row' },
@@ -2279,27 +2208,19 @@ window.__ModuleLoader__.load({
               'aria-current': view === 'practice' && !queue && deck.id === currentDeck.id ? 'page' : undefined,
             },
             h('div', { className: 'dshq-deck-subject' },
-              h(MathText, { text: deck.subject, t, inline: true }),
-              ' · ', deck.source === 'user' ? t('app.sourceUser') : t('app.sourceBundled')),
+              h(MathText, { text: deck.subject, t, inline: true })),
             h('div', { className: 'dshq-deck-title' }, h(MathText, { text: deck.title, t, inline: true })),
             h('span', { className: 'dshq-deck-meta' }, t('deck.count', { n: deck.questions.length }),
               ' · ', t('deck.done', { done, n: deck.questions.length }))),
             h('button', {
               type: 'button',
               className: 'dshq-deck-remove',
-              title: deck.source === 'user' ? t('deck.remove') : t('deck.hide'),
-              'aria-label': `${deck.source === 'user' ? t('deck.remove') : t('deck.hide')} ${deck.title}`,
-              disabled: deck.source === 'user' && removing === deck.id,
-              onClick: () => (deck.source === 'user' ? removeDeck(deck) : hideDeck(deck)),
+              title: t('deck.remove'),
+              'aria-label': `${t('deck.remove')} ${deck.title}`,
+              disabled: removing === deck.id,
+              onClick: () => removeDeck(deck),
             }, h(CrossIcon, { size: 11 })))
         }),
-        decks.some((deck) => hiddenDecks.includes(deck.id))
-          ? h('button', {
-            type: 'button',
-            className: 'dshq-rail-restore',
-            onClick: restoreHiddenDecks,
-          }, t('deck.restoreHidden', { n: decks.filter((deck) => hiddenDecks.includes(deck.id)).length }))
-          : null,
         h('div', { className: 'dshq-rail-hint' }, t('rail.hint')))
 
       const notebookMain = h('main', { className: 'dshq-main', ref: mainRef },
@@ -2476,7 +2397,7 @@ window.__ModuleLoader__.load({
           refreshReport.changed === 0
             ? `${t('refresh.noChange')} · ${t('refresh.lastAt', { time: formatTime(refreshReport.at) })}`
             : [
-              t('refresh.result', { total: refreshReport.total, users: refreshReport.userCount }),
+              t('refresh.result', { total: refreshReport.total }),
               refreshReport.added.length > 0 ? t('refresh.added', { n: refreshReport.added.length }) : null,
               refreshReport.updated.length > 0 ? t('refresh.updated', { n: refreshReport.updated.length }) : null,
               refreshReport.removed.length > 0 ? t('refresh.removed', { n: refreshReport.removed.length }) : null,

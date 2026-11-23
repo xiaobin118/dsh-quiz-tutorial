@@ -18,7 +18,7 @@ import { makeReq, makeRes, stubContext, tempDirs } from './helpers.mjs'
 const { createDeckRoutes, saveDeckFile } = __internal
 
 function routesFor({ connection, dirs }) {
-  return createDeckRoutes({ connection, store: { bundledDir: dirs.bundledDir, userDir: dirs.userDir } })
+  return createDeckRoutes({ connection, store: { userDir: dirs.userDir } })
 }
 
 function sampleDeck(id) {
@@ -93,7 +93,7 @@ test('a rejected request never reads the body nor deletes anything', async () =>
     assert.equal(res.status, 403)
     assert.equal(bodyRead, false, 'the trust fence runs before the body is touched')
 
-    const listed = __internal.loadDecks({ bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    const listed = __internal.loadDecks({ userDir: dirs.userDir })
     assert.deepEqual(listed.decks.map((deck) => deck.id), ['keep'])
   } finally {
     dirs.cleanup()
@@ -188,9 +188,8 @@ test('delete: success, invalid id and missing deck answer with the documented sh
 test('apply() wires both routes, three tools and the skill through the fence', async () => {
   const dirs = tempDirs()
   try {
-    mkdirSync(dirs.bundledDir, { recursive: true })
     const stub = stubContext()
-    apply(stub.ctx, { bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    apply(stub.ctx, { userDir: dirs.userDir })
 
     assert.deepEqual(stub.routes.map((route) => route.path), ['/dsh-quiz/decks', '/dsh-quiz/decks/delete'])
     assert.deepEqual(stub.tools.map((tool) => tool.name), ['quiz_list_decks', 'quiz_save_deck', 'quiz_delete_deck'])
@@ -222,7 +221,7 @@ test('tool failures carry a stable code, matching the documented shape', async (
   const dirs = tempDirs()
   try {
     const stub = stubContext()
-    apply(stub.ctx, { bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    apply(stub.ctx, { userDir: dirs.userDir })
     const save = stub.tools[1]
     const remove = stub.tools[2]
 
@@ -254,7 +253,7 @@ test('save -> refresh sees the deck; an id collision updates instead of duplicat
   const dirs = tempDirs()
   try {
     const stub = stubContext()
-    apply(stub.ctx, { bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    apply(stub.ctx, { userDir: dirs.userDir })
     const list = stub.tools[0]
     const save = stub.tools[1]
     const get = async () => {
@@ -293,7 +292,7 @@ test('apply() surfaces the size contract as a failed save, not a success', async
   const dirs = tempDirs()
   try {
     const stub = stubContext()
-    apply(stub.ctx, { bundledDir: dirs.bundledDir, userDir: dirs.userDir })
+    apply(stub.ctx, { userDir: dirs.userDir })
     const deck = sampleDeck('huge-via-tool')
     deck.questions = Array.from({ length: 40 }, (_, qi) => ({
       ...sampleDeck('x').questions[0],
@@ -315,7 +314,7 @@ test('apply() surfaces the size contract as a failed save, not a success', async
 
 function readdirOf(path) {
   try {
-    return __internal.loadDecks({ bundledDir: join(path, '..', 'bundled'), userDir: path })
+    return __internal.loadDecks({ userDir: path })
       .decks.map((deck) => deck.fileName)
   } catch {
     return []

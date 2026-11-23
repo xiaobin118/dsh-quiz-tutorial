@@ -20,5 +20,3 @@ jobs:
         run: npm run check
       - name: Host/client regression tests
         run: npm test
-      - name: Bundled decks match the generator
-        run: python3 tools/gen_decks.py --check

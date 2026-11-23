@@ -32,8 +32,8 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
 
 ## What it does
 
-- **Decks**: switch decks in the sidebar; bundled CNN and ML concept decks, plus decks generated
-  for any subject.
+- **Decks**: switch decks in the sidebar; every deck is generated for the review context via
+  `/skill dsh-quiz` / `quiz_save_deck` (any subject), or written by the user.
 - **Question + solution**: matrices and 2–6 options; after answering, the aside shows the answer,
   the formula, step-by-step arithmetic with intermediate matrices, pitfalls, and why each wrong
   option is wrong.
@@ -45,9 +45,8 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
   mark fixed, or review all open mistakes in a queue. A correct retry marks the entry fixed.
 - **`/skill dsh-quiz <topic>`**: the skill asks the agent to check existing decks, compute every
   answer and intermediate value, then save a validated deck via `quiz_save_deck`.
-- **Delete / hide decks**: the × on a deck card deletes a custom deck (and clears that deck's
-  local answers/mistakes/hidden flag); bundled decks are hidden and can be restored from the
-  sidebar. Opening a mistake from a hidden deck restores that deck first.
+- **Delete decks**: the × on a deck card deletes it (and clears that deck's local answers and
+  mistakes). The plugin ships no built-in decks, so every listed deck can be removed.
 - Keys `A–F` / `1–6` answer, `←` / `→` move between questions.
 
 ## Deck format
@@ -56,9 +55,6 @@ Decks are plain JSON. The file name must be `<id>.json`, one deck is capped at 5
 (measured in bytes before writing), over-long fields fail with an error instead of being
 silently truncated, and math must be LaTeX inside `$...$` / `$$...$$` (no Unicode math, no bare
 `_`/`^`). See [docs/deck-format.md](docs/deck-format.md) and [skill.md](skill.md).
-
-The numbers in the bundled decks — including every distractor — are computed and asserted by
-[tools/gen_decks.py](tools/gen_decks.py), not typed by hand.
 
 ## Security
 
@@ -78,15 +74,21 @@ dependency-free script concatenates them into the served, checked-in `client.js`
 npm run build:client                 # rebuild client.js from client/src/*.js
 npm run check                        # syntax check + assert client.js is in sync
 npm test                             # node --test (no deps, no network)
-python3 tools/gen_decks.py --check   # bundled decks match the generator
 ```
 
-The 1.0.1 work also replaced the local Unicode math renderer with DSH's KaTeX Markdown primitive
+The 1.0.1 work replaced the local Unicode math renderer with DSH's KaTeX Markdown primitive
 (LaTeX-authored decks plus runtime normalization for legacy decks), made the refresh button report
 added/updated decks and host errors visibly, and added regression tests for the trust fence, the
-byte-size contract, deck validation bounds, refresh diffs, and the LaTeX normalizer.
+byte-size contract, deck validation bounds, refresh diffs, and the LaTeX normalizer. 1.0.2 renders
+matrices with KaTeX `bmatrix` and routes every matrix/label through the same renderer.
 
 ## Changelog
+
+### 1.0.3
+
+- Removed the bundled decks (`decks/`) and their generator: a fresh install starts empty and
+  every deck comes from `/skill dsh-quiz` / `quiz_save_deck` or a user-written JSON file.
+- Deck deletion now applies to every deck; the hide/restore flow for built-in decks is gone.
 
 ### 1.0.2
 

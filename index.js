@@ -9,9 +9,9 @@
  *   tool quiz_save_deck         -> validate + write one deck JSON
  *   tool quiz_delete_deck       -> remove a user deck
  *
- * Decks live in <DSH_HOME>/dsh-quiz/decks/<id>.json (user decks override a
- * bundled deck with the same id).  Bundled decks ship in ./decks and are
- * read-only; saving a deck with the same id is the supported way to update it.
+ * Decks live in <DSH_HOME>/dsh-quiz/decks/<id>.json.  The plugin ships no
+ * built-in decks: every deck is created by the agent (quiz_save_deck / the
+ * dsh-quiz skill) or written by the user, and can be deleted from the page.
  *
  * Two invariants keep the store addressable and honest:
  *   - the file name must be exactly `<id>.json`; a deck whose content id and
@@ -34,7 +34,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url))
-const BUNDLED_DIR = join(PACKAGE_DIR, 'decks')
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
 const USER_DIR = join(DSH_HOME, 'dsh-quiz', 'decks')
 const ROUTE = '/dsh-quiz/decks'
@@ -473,18 +472,13 @@ function decksIn(dir, source, errors, decks) {
   }
 }
 
-/** Read bundled decks first, then user decks (same id overrides). */
+/** Read the user's deck directory.  There are no built-in decks. */
 function loadDecks(options = {}) {
-  const bundledDir = options.bundledDir ?? BUNDLED_DIR
   const userDir = options.userDir ?? USER_DIR
   const decks = new Map()
   const errors = []
-  decksIn(bundledDir, 'bundled', errors, decks)
   decksIn(userDir, 'user', errors, decks)
-  const list = [...decks.values()].sort((left, right) => {
-    if (left.source !== right.source) return left.source === 'user' ? -1 : 1
-    return left.title.localeCompare(right.title, 'zh')
-  })
+  const list = [...decks.values()].sort((left, right) => left.title.localeCompare(right.title, 'zh'))
   return { decks: list, errors }
 }
 
@@ -532,7 +526,7 @@ function deleteUserDeck(id, dir = USER_DIR) {
   if (!ID_PATTERN.test(id)) return { ok: false, code: 'invalid-id', message: 'id 格式不合法。' }
   const target = join(dir, `${id}.json`)
   if (!existsSync(target)) {
-    return { ok: false, code: 'not-found', message: `没有找到用户题集 ${id}（内置题集不能删除）。` }
+    return { ok: false, code: 'not-found', message: `没有找到题集 ${id}。` }
   }
   try {
     unlinkSync(target)
@@ -615,7 +609,7 @@ function isJsonRequest(req) {
  * stub connection without booting a DSH server.
  */
 function createDeckRoutes({ connection, store = {} } = {}) {
-  const dirs = { bundledDir: store.bundledDir, userDir: store.userDir }
+  const dirs = { userDir: store.userDir }
 
   function reject(req, res, allowed) {
     const rejection = trustRejection(connection, req)
@@ -689,18 +683,18 @@ const SAVE_TOOL_LABEL = 'dsh-quiz: quiz_save_deck'
 const DELETE_TOOL_LABEL = 'dsh-quiz: quiz_delete_deck'
 
 /** Build the three deck tools against one store (dirs are injectable for tests). */
-function createDeckTools({ bundledDir, userDir } = {}) {
-  const dirs = { bundledDir, userDir }
+function createDeckTools({ userDir } = {}) {
+  const dirs = { userDir }
   const listDeckTool = {
     name: 'quiz_list_decks',
-    description: '列出「刷题场」里现有的题集（内置 + 用户创建）。为复习内容出题前先调用它，'
+    description: '列出「刷题场」里现有的题集（全部是用户/agent 创建的）。为复习内容出题前先调用它，'
       + '避免重复创建同 id 的题集。',
     parameters: { type: 'object', properties: {} },
     output: { schema: OUTPUT_SCHEMA, render: toolRender },
     async execute() {
       const { decks, errors } = loadDecks(dirs)
       const lines = decks.map((deck) => `- ${deck.id}｜${deck.subject}｜${deck.title}`
-        + `（${deck.questions.length} 题，${deck.source === 'user' ? '用户题集' : '内置'}）`)
+        + `（${deck.questions.length} 题）`)
       const message = decks.length === 0
         ? '还没有题集。'
         : `共 ${decks.length} 套题集：\n${lines.join('\n')}`
@@ -719,7 +713,7 @@ function createDeckTools({ bundledDir, userDir } = {}) {
     description: '把一套复习题保存进「刷题场」，用户在侧边栏的刷题场页面即可逐题练习、看逐步手算解析。'
       + '适用于任意学科：先根据当前复习内容（讲义、错题、对话里讲过的知识）设计题目，'
       + '自己把答案和中间量全部算对，再用本工具保存。同 id 会覆盖旧题集；'
-      + '与内置题集同 id 时写入的是用户覆盖版本（安装包里的文件不动，删掉用户版本后内置版本恢复）。\n\n'
+      + '插件不预置内置题集，所有题集都可以在页面里删除。\n\n'
       + DECK_SCHEMA_HINT,
     parameters: {
       type: 'object',
@@ -784,8 +778,7 @@ function createDeckTools({ bundledDir, userDir } = {}) {
 
   const deleteDeckTool = {
     name: 'quiz_delete_deck',
-    description: '删除一套用户创建的题集（按 id）。内置题集不能被删除；如果用户题集覆盖了同名内置题集，'
-      + '删掉用户题集后内置版本会重新出现。',
+    description: '删除一套用户创建的题集（按 id）。插件不预置内置题集，所有题集都由用户/agent 创建。',
     parameters: {
       type: 'object',
       properties: {
@@ -805,7 +798,6 @@ function createDeckTools({ bundledDir, userDir } = {}) {
 
 export function apply(ctx, options = {}) {
   const store = {
-    bundledDir: options.bundledDir ?? BUNDLED_DIR,
     userDir: options.userDir ?? USER_DIR,
   }
   const { listDeckTool, saveDeckTool, deleteDeckTool } = createDeckTools(store)
@@ -821,8 +813,7 @@ export function apply(ctx, options = {}) {
       handler: routes.getDecks,
     }), 'dsh-quiz: deck route')
 
-    // UI remove: delete one user deck from the Web page. Built-in decks are
-    // read-only and never reach this path.
+    // UI remove: delete one user deck from the Web page.
     webCtx.effect(() => webCtx.webServer.register({
       kind: 'exact',
       path: DELETE_ROUTE,
@@ -857,7 +848,6 @@ export const __internal = {
   LIMITS,
   MAX_DECK_BYTES,
   ID_PATTERN,
-  BUNDLED_DIR,
   normalizeDeck,
   readDeckFile,
   saveDeckFile,

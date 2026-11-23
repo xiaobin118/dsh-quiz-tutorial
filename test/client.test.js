@@ -179,9 +179,6 @@ test('progress helpers purge exactly one deck', () => {
     JSON.parse(JSON.stringify(client.run('withoutDeckMistakes({ "a::q1": { wrong: 1 }, "a::q2": { wrong: 2 }, "b::q3": { wrong: 3 } }, "a")'))),
     { 'b::q3': { wrong: 3 } },
   )
-  assert.deepEqual(JSON.parse(JSON.stringify(client.run('withoutHiddenDeck(["a","b"], "b")'))), ['a'])
-  assert.deepEqual(JSON.parse(JSON.stringify(client.run('withDeckVisible(["a","b"], "b")'))), ['a'])
-  assert.deepEqual(JSON.parse(JSON.stringify(client.run('withDeckVisible(["a"], "z")'))), ['a'])
 })
 
 test('mistake rows resolve known questions and keep orphans addressable', () => {
@@ -323,23 +320,6 @@ test('Inputs sends matrix and scalar labels through MathText', () => {
   assert.ok(scalarTexts.includes('$= -1$'))
 })
 
-test('q1 CNN step labels and option matrices are KaTeX inputs, not raw $', () => {
-  const deck = JSON.parse(readFileSync(join(ROOT, 'decks', 'ml-cnn.json'), 'utf8'))
-  const q1 = deck.questions.find((question) => question.id === 'q1')
-  const labelled = q1.steps.flatMap((step) => step.matrices ?? []).filter((entry) => entry.label)
-  assert.ok(labelled.length > 0, 'q1 has a labelled intermediate matrix')
-  const { MatrixView, MathText } = client.exported.__test
-  for (const entry of labelled) {
-    const tree = MatrixView({ matrix: entry.matrix, label: entry.label, small: true, t: (key) => key })
-    const props = collectMathText(tree, MathText)
-    assert.ok(props.some((p) => p.text === entry.label), `${entry.label} must go through MathText`)
-    assert.ok(props.some((p) => p.text.includes('bmatrix')))
-  }
-  const optionMatrix = q1.options.find((option) => option.kind === 'matrix').matrix
-  const tree = MatrixView({ matrix: optionMatrix, small: true, t: (key) => key })
-  assert.ok(collectMathText(tree, MathText).some((p) => p.text.includes('bmatrix')))
-})
-
 test('display matrices use a block container; small matrices stay inline', () => {
   const { MatrixView, Inputs, OptionButton, MathText } = client.exported.__test
   const bodyProps = (tree) => collectMathText(tree, MathText).find((entry) => entry.text.includes('bmatrix'))
@@ -388,7 +368,7 @@ test('no deck-content field is rendered as raw text any more', () => {
 
 test('refresh diff reports added / updated / removed decks honestly', () => {
   const run = (expression) => JSON.parse(JSON.stringify(client.run(expression)))
-  const first = [{ id: 'a', source: 'user', title: 'A' }, { id: 'b', source: 'bundled', title: 'B' }]
+  const first = [{ id: 'a', source: 'user', title: 'A' }, { id: 'b', source: 'user', title: 'B' }]
   const second = [
     { id: 'a', source: 'user', title: 'A v2' },
     { id: 'c', source: 'user', title: 'C' },
