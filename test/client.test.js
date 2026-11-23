@@ -117,6 +117,34 @@ test('the primitive is optional: a host without it still registers the panel', (
   assert.ok(fallback.requires.includes('@deepseek-ai/dsh-client-ui-primitives'))
 })
 
+test('multi-select answers compare as an exact set with no partial credit', () => {
+  assert.equal(client.run('isCorrectAnswer({ answers: [0, 2] }, [2, 0])'), true)
+  assert.equal(client.run('isCorrectAnswer({ answers: [0, 2] }, [0])'), false)
+  assert.equal(client.run('isCorrectAnswer({ answers: [0, 2] }, [0, 1])'), false)
+  assert.equal(client.run('isCorrectAnswer({ answers: [0, 2] }, [0, 1, 2])'), false)
+  assert.equal(client.run('isCorrectAnswer({ answer: 1 }, 1)'), true)
+  assert.equal(client.run('isCorrectAnswer({ answer: 1 }, 2)'), false)
+  assert.equal(client.run('JSON.stringify(correctIndexes({ answers: [2, 0] }))'), '[2,0]')
+  assert.equal(client.run('JSON.stringify(correctIndexes({ answer: 3 }))'), '[3]')
+  assert.equal(client.run("lettersFor([2, 0])"), 'A, C')
+  assert.equal(client.run('JSON.stringify(togglePickIndex([0], 2))'), '[0,2]')
+  assert.equal(client.run('JSON.stringify(togglePickIndex([0, 2], 0))'), '[2]')
+  assert.equal(client.run("optionState({ answers: [0, 2] }, [0, 2], 0)"), 'picked-correct')
+  assert.equal(client.run("optionState({ answers: [0, 2] }, [0, 2], 1)"), 'dim')
+  assert.equal(client.run("optionState({ answers: [0, 2] }, [0, 1], 1)"), 'picked-wrong')
+  assert.equal(client.run("optionState({ answers: [0, 2] }, [0, 1], 2)"), 'reveal-correct')
+  assert.equal(client.run("optionState({ answers: [0, 2] }, [0, 1], 3)"), 'dim')
+})
+
+test('stored mistake picks accept both single and multi answer shapes', () => {
+  const record = client.run("JSON.stringify(normalizeMistakes({ 'd::q': { wrong: 2, lastAt: 1, lastPick: [2, 0] } })['d::q'])")
+  assert.equal(record, '{"wrong":2,"lastAt":1,"masteredAt":null,"lastPick":[0,2]}')
+  const single = client.run("JSON.stringify(normalizeMistakes({ 'd::q': { lastPick: 1 } })['d::q'].lastPick)")
+  assert.equal(single, '1')
+  const junk = client.run("JSON.stringify(normalizeMistakes({ 'd::q': { lastPick: ['x'] } })['d::q'].lastPick)")
+  assert.equal(junk, 'null')
+})
+
 test('legacy deck text is normalized to $...$ around every math run', () => {
   const strings = [
     'J=Σ_{k=1}^{K}Σ_{x∈C_k}||x−μ_k||²。',

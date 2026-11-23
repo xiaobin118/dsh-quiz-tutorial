@@ -104,6 +104,36 @@ test('deck-level and nested caps are enforced', () => {
   assert.ok(normalizeDeck(longOption).errors.some((line) => line.includes('options[1].text')))
 })
 
+test('multi-select answers are sorted, unique and mutually exclusive with answer', () => {
+  const deck = validDeck()
+  deck.questions[0].options.push({ kind: 'matrix', matrix: [[3]] }, { kind: 'matrix', matrix: [[4]] })
+  delete deck.questions[0].answer
+  deck.questions[0].answers = [2, 0]
+  const { errors, deck: normalized } = normalizeDeck(deck)
+  assert.deepEqual(errors, [])
+  assert.deepEqual(normalized.questions[0].answers, [0, 2])
+  assert.equal('answer' in normalized.questions[0], false)
+})
+
+test('malformed multi-select answers fail with an actionable error', () => {
+  const cases = [
+    ['both fields', (q) => { q.answers = [0, 1] }, '只能二选一'],
+    ['neither field', (q) => { delete q.answer }, '必须提供 answer'],
+    ['too few', (q) => { delete q.answer; q.answers = [0] }, '至少要有 2 个'],
+    ['duplicate', (q) => { delete q.answer; q.answers = [0, 0] }, '重复下标'],
+    ['out of range', (q) => { delete q.answer; q.answers = [0, 9] }, '超出'],
+    ['not an integer', (q) => { delete q.answer; q.answers = [0, '1'] }, '整数下标'],
+    ['not an array', (q) => { delete q.answer; q.answers = 0 }, '必须是数组'],
+    ['more than options', (q) => { delete q.answer; q.answers = [0, 1, 2, 3, 4] }, '不能超过选项数'],
+  ]
+  for (const [name, mutate, expected] of cases) {
+    const deck = validDeck()
+    mutate(deck.questions[0])
+    const { errors } = normalizeDeck(deck)
+    assert.ok(errors.some((line) => line.includes(expected)), `${name}: ${errors.join('\n')}`)
+  }
+})
+
 test('duplicate question ids are rejected instead of renamed', () => {
   const deck = validDeck()
   deck.questions.push(structuredClone(deck.questions[0]))

@@ -153,6 +153,7 @@ const CSS = `
 .dshq-qhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dshq-qindex { font-size: 14px; font-weight: 600; }
 .dshq-qof { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.dshq-tag.is-multi { color: var(--dsw-alias-brand-primary); border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 32%, transparent); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent); }
 .dshq-tag {
   display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
   border-radius: 999px; font-size: 10.5px; letter-spacing: .02em;
@@ -177,6 +178,8 @@ const CSS = `
 }
 .dshq-cond-label { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dsw-alias-label-tertiary); flex: 0 0 auto; }
 .dshq-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dshq-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.dshq-submit-row .dshq-button { margin-left: auto; }
 .dshq-option {
   display: flex; align-items: center; gap: 10px;
   min-width: 0; padding: 10px 12px;
@@ -188,6 +191,8 @@ const CSS = `
   transition: border-color .15s ease, background .15s ease;
 }
 .dshq-option.is-text { grid-column: 1 / -1; }
+.dshq-option.is-selected { border-color: var(--dsw-alias-brand-primary); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent); box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary); }
+.dshq-option.is-selected .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-brand-primary); border-color: transparent; }
 .dshq-option:hover:not(:disabled) { border-color: var(--dsw-alias-border-l2); background: var(--dsw-alias-interactive-bg-hover); }
 .dshq-option:disabled { cursor: default; }
 .dshq-option.is-picked-correct { border-color: var(--dsw-alias-state-success-primary); box-shadow: inset 0 0 0 1px var(--dsw-alias-state-success-primary); }

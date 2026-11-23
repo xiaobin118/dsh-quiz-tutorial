@@ -15,6 +15,7 @@
       const [deckId, setDeckId] = useState(() => (typeof initial?.deckId === 'string' ? initial.deckId : null))
       const [qi, setQi] = useState(() => (Number.isInteger(initial?.qi) && initial.qi >= 0 ? initial.qi : 0))
       const [answers, setAnswers] = useState(() => (initial?.answers && typeof initial.answers === 'object' ? initial.answers : {}))
+      const [draft, setDraft] = useState({ key: null, picks: [] })
       const [mistakes, setMistakes] = useState(() => normalizeMistakes(initial?.mistakes))
       const [tab, setTab] = useState(() => (initial?.tab === 'notes' ? 'notes' : 'quiz'))
       const [view, setView] = useState(() => (initial?.view === 'mistakes' ? 'mistakes' : 'practice'))
@@ -126,13 +127,16 @@
       const deckAnswers = currentDeck ? (answers[currentDeck.id] ?? {}) : {}
       const activeAnswers = practiceDeck ? (answers[practiceDeck.id] ?? {}) : {}
       const picked = question && activeAnswers[question.id] !== undefined ? activeAnswers[question.id] : null
+      const multi = question ? isMultiAnswer(question) : false
+      const questionKey = question && practiceDeck ? `${practiceDeck.id}::${question.id}` : null
+      const draftPicks = multi && picked === null && draft.key === questionKey ? draft.picks : []
 
       const deckStats = currentDeck
         ? currentDeck.questions.reduce((stats, item) => {
           const value = deckAnswers[item.id]
           if (value !== undefined) {
             stats.answered += 1
-            if (value === item.answer) stats.correct += 1
+            if (isCorrectAnswer(item, value)) stats.correct += 1
           }
           return stats
         }, { answered: 0, correct: 0 })
@@ -145,7 +149,7 @@
           const value = answers[resolved.deck.id]?.[item.qid]
           if (value === undefined) return stats
           stats.answered += 1
-          if (value === resolved.question.answer) stats.correct += 1
+          if (isCorrectAnswer(resolved.question, value)) stats.correct += 1
           return stats
         }, { answered: 0, correct: 0 })
         : null
@@ -168,23 +172,26 @@
       const accuracy = activeAnswered > 0 ? activeAccuracy : 0
       const allDone = displayTotal > 0 && answeredCount >= displayTotal && headerMode !== 'notebook'
 
-      function recordAnswer(deck, item, index) {
+      function recordAnswer(deck, item, value) {
+        const stored = Array.isArray(value)
+          ? [...value].sort((left, right) => left - right)
+          : value
         setAnswers((previous) => {
           const deckState = { ...(previous[deck.id] ?? {}) }
-          deckState[item.id] = index
+          deckState[item.id] = stored
           return { ...previous, [deck.id]: deckState }
         })
         setMistakes((previous) => {
           const key = mistakeKey(deck.id, item.id)
           const current = previous[key]
-          if (index !== item.answer) {
+          if (!isCorrectAnswer(item, stored)) {
             return {
               ...previous,
               [key]: {
                 wrong: (current?.wrong ?? 0) + 1,
                 lastAt: Date.now(),
                 masteredAt: null,
-                lastPick: index,
+                lastPick: stored,
               },
             }
           }
@@ -197,11 +204,25 @@
 
       function pick(index) {
         if (!question || !practiceDeck || picked !== null) return
+        if (multi) {
+          setDraft((previous) => {
+            const base = previous.key === questionKey ? previous.picks : []
+            return { key: questionKey, picks: togglePickIndex(base, index) }
+          })
+          return
+        }
         recordAnswer(practiceDeck, question, index)
+      }
+
+      function submitPicks() {
+        if (!multi || picked !== null || draftPicks.length < 2) return
+        if (!practiceDeck || !question) return
+        recordAnswer(practiceDeck, question, draftPicks)
       }
 
       function retryQuestion() {
         if (!practiceDeck || !question) return
+        setDraft({ key: null, picks: [] })
         setAnswers((previous) => {
           const deckState = { ...(previous[practiceDeck.id] ?? {}) }
           delete deckState[question.id]
@@ -211,6 +232,7 @@
       }
 
       function selectDeck(id) {
+        setDraft({ key: null, picks: [] })
         setDeckId(id)
         setQi(0)
         setQueue(null)
@@ -231,6 +253,7 @@
 
       function resetDeck() {
         if (!currentDeck) return
+        setDraft({ key: null, picks: [] })
         setAnswers((previous) => ({ ...previous, [currentDeck.id]: {} }))
         setQi(0)
         setTab('quiz')
@@ -239,6 +262,7 @@
       function startReview() {
         const target = rows.filter((row) => row.question && row.rec.masteredAt === null)
         if (target.length === 0) return
+        setDraft({ key: null, picks: [] })
         setAnswers((previous) => {
           const next = { ...previous }
           for (const row of target) {
@@ -260,6 +284,7 @@
 
       function openRow(row, redo) {
         if (!row.deck || !row.question) return
+        setDraft({ key: null, picks: [] })
         if (redo) {
           setAnswers((previous) => {
             const deckState = { ...(previous[row.deckId] ?? {}) }
@@ -360,6 +385,10 @@
       }
 
       useEffect(() => {
+        setDraft({ key: questionKey, picks: [] })
+      }, [questionKey, picked])
+
+      useEffect(() => {
         const main = mainRef.current
         const aside = asideRef.current
         if (main) main.scrollTop = 0
@@ -382,6 +411,13 @@
           if (key === 'ArrowRight') {
             event.preventDefault()
             navigateTo(displayIndex + 1)
+            return
+          }
+          if (multi && picked === null && key === 'Enter') {
+            if (draftPicks.length >= 2) {
+              event.preventDefault()
+              submitPicks()
+            }
             return
           }
           const lower = key.toLowerCase()
@@ -537,11 +573,11 @@
           const resolved = resolveQueueItem(decks, item)
           return {
             key: mistakeKey(item.deckId, item.qid),
+            question: resolved ? resolved.question : null,
             value: resolved ? answers[resolved.deck.id]?.[item.qid] : undefined,
-            answer: resolved ? resolved.question.answer : null,
           }
         })
-        : currentDeck.questions.map((item) => ({ key: item.id, value: deckAnswers[item.id], answer: item.answer }))
+        : currentDeck.questions.map((item) => ({ key: item.id, question: item, value: deckAnswers[item.id] }))
 
       const practiceMain = h('main', { className: 'dshq-main', ref: mainRef },
         h('div', { className: 'dshq-main-inner' },
@@ -569,6 +605,9 @@
                 question.level
                   ? h('div', { className: 'dshq-tag' }, h(MathText, { text: question.level, t, inline: true }))
                   : null,
+                multi
+                  ? h('div', { className: 'dshq-tag is-multi' }, t('quiz.multi'))
+                  : null,
                 question.topic
                   ? h('div', { className: 'dshq-topic' }, h(MathText, { text: question.topic, t, inline: true }))
                   : null,
@@ -589,10 +628,22 @@
                 option,
                 index,
                 state: optionState(question, picked, index),
+                selected: multi && picked === null && draftPicks.includes(index),
+                multi,
                 disabled: picked !== null,
                 onPick: pick,
                 t,
               }))),
+              multi && picked === null
+                ? h('div', { className: 'dshq-submit-row' },
+                  h('span', { className: 'dshq-hint' }, t('quiz.multiHint', { n: draftPicks.length })),
+                  h('button', {
+                    type: 'button',
+                    className: 'dshq-button is-primary',
+                    disabled: draftPicks.length < 2,
+                    onClick: submitPicks,
+                  }, t('quiz.submit')))
+                : null,
               allDone
                 ? h('div', { className: 'dshq-summary' },
                   h('span', null, queue
@@ -616,7 +667,7 @@
               h('div', { className: 'dshq-dots' }, pagerEntries.map((entry, index) => {
                 const dotClass = ['dshq-dot']
                 if (index === displayIndex) dotClass.push('is-current')
-                if (entry.value !== undefined) dotClass.push(entry.value === entry.answer ? 'is-good' : 'is-bad')
+                if (entry.value !== undefined) dotClass.push(entry.question && isCorrectAnswer(entry.question, entry.value) ? 'is-good' : 'is-bad')
                 return h('button', {
                   key: entry.key,
                   type: 'button',
@@ -663,7 +714,7 @@
                 ? h(Solution, { question, picked, t, onRetry: retryQuestion })
                 : h('div', { className: 'dshq-card' }, t('mistakes.missingDeck')),
             h('div', { className: 'dshq-kbd-hint' },
-              h('span', { className: 'dshq-hint' }, t('quiz.keyboardHint')))))
+              h('span', { className: 'dshq-hint' }, t(multi ? 'quiz.keyboardHintMulti' : 'quiz.keyboardHint')))))
 
       // Host diagnostics and failed refreshes/deletes are visible, not a
       // hover-only chip: one alert region with a retry action.

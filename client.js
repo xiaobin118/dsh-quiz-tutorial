@@ -139,6 +139,12 @@ const zh = {
   'quiz.yourPick': '你的选择',
   'quiz.answerLabel': '正确答案',
   'quiz.pickHint': '选一个选项后，右侧会展开逐步手算与易错点。',
+  'quiz.pickHintMulti': '选出所有正确项并提交后，右侧会展开逐步手算与易错点。',
+  'quiz.multi': '多选',
+  'quiz.multiHint': '多选题：选出所有正确项（已选 {n} 个，至少 2 个）',
+  'quiz.submit': '提交答案',
+  'quiz.answersLabel': '正确答案（多选）',
+  'quiz.keyboardHintMulti': '键盘：A–F 选择/取消，Enter 提交，← / → 切题',
   'quiz.conditions': '条件',
   'app.deckDiagnostics': '题集诊断',
   'quiz.summary': '本套完成：答对 {c}/{n} 题，正确率 {p}%',
@@ -241,6 +247,12 @@ const en = {
   'quiz.yourPick': 'Your pick',
   'quiz.answerLabel': 'Answer',
   'quiz.pickHint': 'Pick an option to unfold the step-by-step work and pitfalls here.',
+  'quiz.pickHintMulti': 'Choose every correct option, then submit to unfold the step-by-step work and pitfalls here.',
+  'quiz.multi': 'Multi',
+  'quiz.multiHint': 'Multi-select: choose every correct option ({n} selected, at least 2)',
+  'quiz.submit': 'Submit',
+  'quiz.answersLabel': 'Answers',
+  'quiz.keyboardHintMulti': 'Keys: A–F toggle, Enter submit, ← / → to move',
   'quiz.conditions': 'Conditions',
   'app.deckDiagnostics': 'Deck diagnostics',
   'quiz.summary': 'Deck complete: {c}/{n} correct, {p}% accuracy',
@@ -415,6 +427,7 @@ const CSS = `
 .dshq-qhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dshq-qindex { font-size: 14px; font-weight: 600; }
 .dshq-qof { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.dshq-tag.is-multi { color: var(--dsw-alias-brand-primary); border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 32%, transparent); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent); }
 .dshq-tag {
   display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
   border-radius: 999px; font-size: 10.5px; letter-spacing: .02em;
@@ -439,6 +452,8 @@ const CSS = `
 }
 .dshq-cond-label { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dsw-alias-label-tertiary); flex: 0 0 auto; }
 .dshq-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dshq-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.dshq-submit-row .dshq-button { margin-left: auto; }
 .dshq-option {
   display: flex; align-items: center; gap: 10px;
   min-width: 0; padding: 10px 12px;
@@ -450,6 +465,8 @@ const CSS = `
   transition: border-color .15s ease, background .15s ease;
 }
 .dshq-option.is-text { grid-column: 1 / -1; }
+.dshq-option.is-selected { border-color: var(--dsw-alias-brand-primary); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent); box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary); }
+.dshq-option.is-selected .dshq-opt-letter { color: var(--dsw-alias-label-primary-inverted); background: var(--dsw-alias-brand-primary); border-color: transparent; }
 .dshq-option:hover:not(:disabled) { border-color: var(--dsw-alias-border-l2); background: var(--dsw-alias-interactive-bg-hover); }
 .dshq-option:disabled { cursor: default; }
 .dshq-option.is-picked-correct { border-color: var(--dsw-alias-state-success-primary); box-shadow: inset 0 0 0 1px var(--dsw-alias-state-success-primary); }
@@ -1168,6 +1185,8 @@ function latexPlainText(value) {
  *
  * Provides: withoutDeckAnswers, withoutDeckMistakes, readStored, MISTAKE_SEP,
  * mistakeKey, splitMistakeKey, normalizeMistakes, resolveQueueItem, mistakeRows,
+ * isMultiAnswer, correctIndexes, toPickIndexes, togglePickIndex, isCorrectAnswer, lettersFor,
+ * optionState,
  * formatTime, deckFingerprint, diffDecks, refreshSummary, fetchDecks.
  * Requires: STORAGE_KEY (base.js).
  */
@@ -1220,10 +1239,72 @@ function normalizeMistakes(raw) {
     const wrong = Number.isFinite(record.wrong) && record.wrong > 0 ? Math.floor(record.wrong) : 1
     const lastAt = Number.isFinite(record.lastAt) ? record.lastAt : Date.now()
     const masteredAt = Number.isFinite(record.masteredAt) ? record.masteredAt : null
-    const lastPick = Number.isInteger(record.lastPick) ? record.lastPick : null
+    const rawPick = Array.isArray(record.lastPick)
+      ? record.lastPick.filter((entry) => Number.isInteger(entry)).sort((left, right) => left - right)
+      : record.lastPick
+    const lastPick = Array.isArray(rawPick)
+      ? (rawPick.length > 0 ? rawPick : null)
+      : (Number.isInteger(rawPick) ? rawPick : null)
     out[key] = { wrong, lastAt, masteredAt, lastPick }
   }
   return out
+}
+
+/** True for a deck question that carries `answers` instead of `answer`. */
+function isMultiAnswer(question) {
+  return question !== null && typeof question === 'object' && Array.isArray(question.answers)
+}
+
+/** The correct option indexes for either question shape. */
+function correctIndexes(question) {
+  if (isMultiAnswer(question)) return question.answers
+  return question && Number.isInteger(question.answer) ? [question.answer] : []
+}
+
+/** Normalize a stored answer (number, array, or junk) to an index list. */
+function toPickIndexes(value) {
+  if (Array.isArray(value)) return value.filter((entry) => Number.isInteger(entry))
+  return Number.isInteger(value) ? [value] : []
+}
+
+/** Toggle one index in a sorted multi-select list. */
+function togglePickIndex(picks, index) {
+  const current = toPickIndexes(picks)
+  return current.includes(index)
+    ? current.filter((entry) => entry !== index)
+    : [...current, index].sort((left, right) => left - right)
+}
+
+/** Exact set match: multi-select has no partial credit. */
+function isCorrectAnswer(question, value) {
+  const correct = [...correctIndexes(question)].sort((left, right) => left - right)
+  const picks = [...toPickIndexes(value)].sort((left, right) => left - right)
+  if (picks.length !== correct.length) return false
+  return picks.every((pick, index) => pick === correct[index])
+}
+
+/** "A, C" for a value; used by verdict cards and the mistake log. */
+function lettersFor(value) {
+  return [...toPickIndexes(value)].sort((left, right) => left - right).map(letterOf).join(', ')
+}
+
+/**
+ * Visual state of one option after (or before) answering.  `selected` is the
+ * pre-submit draft state for multi-select and is handled by the component; this
+ * function only describes the graded states.
+ */
+function optionState(question, picked, index) {
+  if (picked === null || picked === undefined) return 'idle'
+  if (isMultiAnswer(question)) {
+    const picks = new Set(toPickIndexes(picked))
+    const correct = new Set(correctIndexes(question))
+    if (picks.has(index)) return correct.has(index) ? 'picked-correct' : 'picked-wrong'
+    return correct.has(index) ? 'reveal-correct' : 'dim'
+  }
+  if (picked === question.answer) return index === picked ? 'picked-correct' : 'dim'
+  if (index === picked) return 'picked-wrong'
+  if (index === question.answer) return 'reveal-correct'
+  return 'dim'
 }
 
 function resolveQueueItem(decks, item) {
@@ -1441,9 +1522,10 @@ window.__ModuleLoader__.load({
       }))
     }
 
-    function OptionButton({ option, index, state, disabled, onPick, t }) {
+    function OptionButton({ option, index, state, selected, multi, disabled, onPick, t }) {
       const classes = ['dshq-option']
       if (option.kind === 'text') classes.push('is-text')
+      if (selected) classes.push('is-selected')
       if (state === 'picked-correct') classes.push('is-picked-correct')
       else if (state === 'picked-wrong') classes.push('is-picked-wrong')
       else if (state === 'reveal-correct') classes.push('is-reveal-correct')
@@ -1461,7 +1543,9 @@ window.__ModuleLoader__.load({
         className: classes.join(' '),
         onClick: () => onPick(index),
         disabled,
-        'aria-pressed': state === 'picked-correct' || state === 'picked-wrong' ? true : undefined,
+        'aria-pressed': selected || state === 'picked-correct' || state === 'picked-wrong'
+          ? true
+          : (multi ? false : undefined),
         'aria-label': `${letterOf(index)}. ${description}`,
       },
       h('span', { className: 'dshq-opt-letter', 'aria-hidden': true }, letterOf(index)),
@@ -1471,17 +1555,9 @@ window.__ModuleLoader__.load({
       mark)
     }
 
-    function optionState(question, picked, index) {
-      if (picked === null || picked === undefined) return 'idle'
-      if (picked === question.answer) return index === picked ? 'picked-correct' : 'dim'
-      if (index === picked) return 'picked-wrong'
-      if (index === question.answer) return 'reveal-correct'
-      return 'dim'
-    }
-
-    function AnswerValue({ option, index, picked, good, t }) {
+    function AnswerValue({ option, index, good, t }) {
       const letter = letterOf(index)
-      const chipClass = `dshq-chip-letter${good ? ' is-good' : ''}`
+      const chipClass = `dshq-chip-letter${good ? ' is-good' : ' is-bad'}`
       return h('div', { className: 'dshq-pick-value' },
         h('span', { className: chipClass }, letter),
         option.kind === 'matrix'
@@ -1490,9 +1566,9 @@ window.__ModuleLoader__.load({
     }
 
     function VerdictCard({ question, picked, t, onRetry }) {
-      const good = picked === question.answer
-      const pickedOption = question.options[picked]
-      const answerOption = question.options[question.answer]
+      const good = isCorrectAnswer(question, picked)
+      const correct = correctIndexes(question)
+      const pickedIndexes = toPickIndexes(picked)
       return h('div', { className: 'dshq-card' },
         h('div', { className: `dshq-verdict${good ? ' is-good' : ' is-bad'}`, style: { width: '100%' } },
           good ? h(CheckIcon, { size: 15 }) : h(CrossIcon, { size: 15 }),
@@ -1503,11 +1579,17 @@ window.__ModuleLoader__.load({
           }, t('quiz.retry'))),
         h('div', { className: 'dshq-answer-row' },
           h('div', { className: 'dshq-pick' },
-            h('div', { className: 'dshq-pick-label' }, t('quiz.answerLabel')),
-            answerOption ? h(AnswerValue, { option: answerOption, index: question.answer, picked, good: true, t }) : null),
-          pickedOption && !good ? h('div', { className: 'dshq-pick' },
-            h('div', { className: 'dshq-pick-label' }, t('quiz.yourPick')),
-            h(AnswerValue, { option: pickedOption, index: picked, picked, good: false, t })) : null))
+            h('div', { className: 'dshq-pick-label' }, t(Array.isArray(question.answers) ? 'quiz.answersLabel' : 'quiz.answerLabel')),
+            correct.map((index) => question.options[index]
+              ? h(AnswerValue, { key: `answer-${index}`, option: question.options[index], index, good: true, t })
+              : null)),
+          !good
+            ? h('div', { className: 'dshq-pick' },
+              h('div', { className: 'dshq-pick-label' }, t('quiz.yourPick')),
+              pickedIndexes.map((index) => question.options[index]
+                ? h(AnswerValue, { key: `pick-${index}`, option: question.options[index], index, good: correct.includes(index), t })
+                : null))
+            : null))
     }
 
     function StepBlock({ step, t }) {
@@ -1529,11 +1611,13 @@ window.__ModuleLoader__.load({
           question.formula ? h('div', { style: { marginTop: '10px' } },
             h('div', { className: 'dshq-section-title' }, t('aside.formula')),
             h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula, t }))) : null,
-          h('p', { className: 'dshq-hint', style: { margin: '10px 0 0' } }, t('quiz.pickHint')))
+          h('p', { className: 'dshq-hint', style: { margin: '10px 0 0' } }, t(Array.isArray(question.answers) ? 'quiz.pickHintMulti' : 'quiz.pickHint')))
       }
+      const correct = correctIndexes(question)
+      const pickedIndexes = toPickIndexes(picked)
       const diagnostics = question.options
         .map((option, index) => ({ option, index }))
-        .filter((entry) => entry.index !== question.answer && entry.option.note)
+        .filter((entry) => !correct.includes(entry.index) && entry.option.note)
       return h(React.Fragment, null,
         h(VerdictCard, { question, picked, t, onRetry }),
         question.formula ? h('div', { className: 'dshq-card' },
@@ -1549,7 +1633,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dshq-section-title' }, t('aside.diagnostics')),
           h('div', { className: 'dshq-diagnostics' }, diagnostics.map((entry) => h('div', {
             key: entry.index,
-            className: `dshq-diagnostic${entry.index === picked ? ' is-picked' : ''}`,
+            className: `dshq-diagnostic${pickedIndexes.includes(entry.index) ? ' is-picked' : ''}`,
           },
           h('span', { className: 'dshq-chip-letter' }, letterOf(entry.index)),
           h('div', { className: 'dshq-diagnostic-note' }, h(MathText, { text: entry.option.note, t })))))) : null)
@@ -1600,7 +1684,9 @@ window.__ModuleLoader__.load({
     function MistakeCard({ row, t, onView, onRedo, onToggle, onRemove }) {
       const { question, deck, rec } = row
       const mastered = rec.masteredAt !== null
-      const lastPick = Number.isInteger(rec.lastPick) ? rec.lastPick : null
+      const lastPick = rec.lastPick
+      const hasPick = lastPick !== null && lastPick !== undefined
+      const answerText = lettersFor(correctIndexes(question))
       return h('article', { className: 'dshq-mistake' },
         h('div', { className: 'dshq-mistake-top' },
           question && question.level
@@ -1618,9 +1704,9 @@ window.__ModuleLoader__.load({
           : h('p', { className: 'dshq-mistake-prompt' }, t('mistakes.missingDeck')),
         question
           ? h('div', { className: 'dshq-mistake-meta' },
-            lastPick !== null
-              ? h('span', null, t('mistakes.lastWrong', { pick: letterOf(lastPick), answer: letterOf(question.answer) }))
-              : h('span', null, `${t('quiz.answerLabel')} ${letterOf(question.answer)}`),
+            hasPick
+              ? h('span', null, t('mistakes.lastWrong', { pick: lettersFor(lastPick), answer: answerText }))
+              : h('span', null, `${t('quiz.answerLabel')} ${answerText}`),
             h('span', null, t('mistakes.lastAt', { time: formatTime(rec.lastAt) })),
             mastered ? h('span', null, t('mistakes.masteredAt', { time: formatTime(rec.masteredAt) })) : null)
           : null,
@@ -1720,6 +1806,7 @@ window.__ModuleLoader__.load({
       const [deckId, setDeckId] = useState(() => (typeof initial?.deckId === 'string' ? initial.deckId : null))
       const [qi, setQi] = useState(() => (Number.isInteger(initial?.qi) && initial.qi >= 0 ? initial.qi : 0))
       const [answers, setAnswers] = useState(() => (initial?.answers && typeof initial.answers === 'object' ? initial.answers : {}))
+      const [draft, setDraft] = useState({ key: null, picks: [] })
       const [mistakes, setMistakes] = useState(() => normalizeMistakes(initial?.mistakes))
       const [tab, setTab] = useState(() => (initial?.tab === 'notes' ? 'notes' : 'quiz'))
       const [view, setView] = useState(() => (initial?.view === 'mistakes' ? 'mistakes' : 'practice'))
@@ -1831,13 +1918,16 @@ window.__ModuleLoader__.load({
       const deckAnswers = currentDeck ? (answers[currentDeck.id] ?? {}) : {}
       const activeAnswers = practiceDeck ? (answers[practiceDeck.id] ?? {}) : {}
       const picked = question && activeAnswers[question.id] !== undefined ? activeAnswers[question.id] : null
+      const multi = question ? isMultiAnswer(question) : false
+      const questionKey = question && practiceDeck ? `${practiceDeck.id}::${question.id}` : null
+      const draftPicks = multi && picked === null && draft.key === questionKey ? draft.picks : []
 
       const deckStats = currentDeck
         ? currentDeck.questions.reduce((stats, item) => {
           const value = deckAnswers[item.id]
           if (value !== undefined) {
             stats.answered += 1
-            if (value === item.answer) stats.correct += 1
+            if (isCorrectAnswer(item, value)) stats.correct += 1
           }
           return stats
         }, { answered: 0, correct: 0 })
@@ -1850,7 +1940,7 @@ window.__ModuleLoader__.load({
           const value = answers[resolved.deck.id]?.[item.qid]
           if (value === undefined) return stats
           stats.answered += 1
-          if (value === resolved.question.answer) stats.correct += 1
+          if (isCorrectAnswer(resolved.question, value)) stats.correct += 1
           return stats
         }, { answered: 0, correct: 0 })
         : null
@@ -1873,23 +1963,26 @@ window.__ModuleLoader__.load({
       const accuracy = activeAnswered > 0 ? activeAccuracy : 0
       const allDone = displayTotal > 0 && answeredCount >= displayTotal && headerMode !== 'notebook'
 
-      function recordAnswer(deck, item, index) {
+      function recordAnswer(deck, item, value) {
+        const stored = Array.isArray(value)
+          ? [...value].sort((left, right) => left - right)
+          : value
         setAnswers((previous) => {
           const deckState = { ...(previous[deck.id] ?? {}) }
-          deckState[item.id] = index
+          deckState[item.id] = stored
           return { ...previous, [deck.id]: deckState }
         })
         setMistakes((previous) => {
           const key = mistakeKey(deck.id, item.id)
           const current = previous[key]
-          if (index !== item.answer) {
+          if (!isCorrectAnswer(item, stored)) {
             return {
               ...previous,
               [key]: {
                 wrong: (current?.wrong ?? 0) + 1,
                 lastAt: Date.now(),
                 masteredAt: null,
-                lastPick: index,
+                lastPick: stored,
               },
             }
           }
@@ -1902,11 +1995,25 @@ window.__ModuleLoader__.load({
 
       function pick(index) {
         if (!question || !practiceDeck || picked !== null) return
+        if (multi) {
+          setDraft((previous) => {
+            const base = previous.key === questionKey ? previous.picks : []
+            return { key: questionKey, picks: togglePickIndex(base, index) }
+          })
+          return
+        }
         recordAnswer(practiceDeck, question, index)
+      }
+
+      function submitPicks() {
+        if (!multi || picked !== null || draftPicks.length < 2) return
+        if (!practiceDeck || !question) return
+        recordAnswer(practiceDeck, question, draftPicks)
       }
 
       function retryQuestion() {
         if (!practiceDeck || !question) return
+        setDraft({ key: null, picks: [] })
         setAnswers((previous) => {
           const deckState = { ...(previous[practiceDeck.id] ?? {}) }
           delete deckState[question.id]
@@ -1916,6 +2023,7 @@ window.__ModuleLoader__.load({
       }
 
       function selectDeck(id) {
+        setDraft({ key: null, picks: [] })
         setDeckId(id)
         setQi(0)
         setQueue(null)
@@ -1936,6 +2044,7 @@ window.__ModuleLoader__.load({
 
       function resetDeck() {
         if (!currentDeck) return
+        setDraft({ key: null, picks: [] })
         setAnswers((previous) => ({ ...previous, [currentDeck.id]: {} }))
         setQi(0)
         setTab('quiz')
@@ -1944,6 +2053,7 @@ window.__ModuleLoader__.load({
       function startReview() {
         const target = rows.filter((row) => row.question && row.rec.masteredAt === null)
         if (target.length === 0) return
+        setDraft({ key: null, picks: [] })
         setAnswers((previous) => {
           const next = { ...previous }
           for (const row of target) {
@@ -1965,6 +2075,7 @@ window.__ModuleLoader__.load({
 
       function openRow(row, redo) {
         if (!row.deck || !row.question) return
+        setDraft({ key: null, picks: [] })
         if (redo) {
           setAnswers((previous) => {
             const deckState = { ...(previous[row.deckId] ?? {}) }
@@ -2065,6 +2176,10 @@ window.__ModuleLoader__.load({
       }
 
       useEffect(() => {
+        setDraft({ key: questionKey, picks: [] })
+      }, [questionKey, picked])
+
+      useEffect(() => {
         const main = mainRef.current
         const aside = asideRef.current
         if (main) main.scrollTop = 0
@@ -2087,6 +2202,13 @@ window.__ModuleLoader__.load({
           if (key === 'ArrowRight') {
             event.preventDefault()
             navigateTo(displayIndex + 1)
+            return
+          }
+          if (multi && picked === null && key === 'Enter') {
+            if (draftPicks.length >= 2) {
+              event.preventDefault()
+              submitPicks()
+            }
             return
           }
           const lower = key.toLowerCase()
@@ -2242,11 +2364,11 @@ window.__ModuleLoader__.load({
           const resolved = resolveQueueItem(decks, item)
           return {
             key: mistakeKey(item.deckId, item.qid),
+            question: resolved ? resolved.question : null,
             value: resolved ? answers[resolved.deck.id]?.[item.qid] : undefined,
-            answer: resolved ? resolved.question.answer : null,
           }
         })
-        : currentDeck.questions.map((item) => ({ key: item.id, value: deckAnswers[item.id], answer: item.answer }))
+        : currentDeck.questions.map((item) => ({ key: item.id, question: item, value: deckAnswers[item.id] }))
 
       const practiceMain = h('main', { className: 'dshq-main', ref: mainRef },
         h('div', { className: 'dshq-main-inner' },
@@ -2274,6 +2396,9 @@ window.__ModuleLoader__.load({
                 question.level
                   ? h('div', { className: 'dshq-tag' }, h(MathText, { text: question.level, t, inline: true }))
                   : null,
+                multi
+                  ? h('div', { className: 'dshq-tag is-multi' }, t('quiz.multi'))
+                  : null,
                 question.topic
                   ? h('div', { className: 'dshq-topic' }, h(MathText, { text: question.topic, t, inline: true }))
                   : null,
@@ -2294,10 +2419,22 @@ window.__ModuleLoader__.load({
                 option,
                 index,
                 state: optionState(question, picked, index),
+                selected: multi && picked === null && draftPicks.includes(index),
+                multi,
                 disabled: picked !== null,
                 onPick: pick,
                 t,
               }))),
+              multi && picked === null
+                ? h('div', { className: 'dshq-submit-row' },
+                  h('span', { className: 'dshq-hint' }, t('quiz.multiHint', { n: draftPicks.length })),
+                  h('button', {
+                    type: 'button',
+                    className: 'dshq-button is-primary',
+                    disabled: draftPicks.length < 2,
+                    onClick: submitPicks,
+                  }, t('quiz.submit')))
+                : null,
               allDone
                 ? h('div', { className: 'dshq-summary' },
                   h('span', null, queue
@@ -2321,7 +2458,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dshq-dots' }, pagerEntries.map((entry, index) => {
                 const dotClass = ['dshq-dot']
                 if (index === displayIndex) dotClass.push('is-current')
-                if (entry.value !== undefined) dotClass.push(entry.value === entry.answer ? 'is-good' : 'is-bad')
+                if (entry.value !== undefined) dotClass.push(entry.question && isCorrectAnswer(entry.question, entry.value) ? 'is-good' : 'is-bad')
                 return h('button', {
                   key: entry.key,
                   type: 'button',
@@ -2368,7 +2505,7 @@ window.__ModuleLoader__.load({
                 ? h(Solution, { question, picked, t, onRetry: retryQuestion })
                 : h('div', { className: 'dshq-card' }, t('mistakes.missingDeck')),
             h('div', { className: 'dshq-kbd-hint' },
-              h('span', { className: 'dshq-hint' }, t('quiz.keyboardHint')))))
+              h('span', { className: 'dshq-hint' }, t(multi ? 'quiz.keyboardHintMulti' : 'quiz.keyboardHint')))))
 
       // Host diagnostics and failed refreshes/deletes are visible, not a
       // hover-only chip: one alert region with a retry action.

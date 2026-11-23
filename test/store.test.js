@@ -61,6 +61,25 @@ test('save -> list -> delete round trip', () => {
   }
 })
 
+test('save -> load keeps multi-select answers and drops the absent single answer', () => {
+  const dirs = tempDirs()
+  try {
+    const deck = sampleDeck('multi')
+    deck.questions[0].options.push({ kind: 'matrix', matrix: [[3]] }, { kind: 'matrix', matrix: [[4]] })
+    delete deck.questions[0].answer
+    deck.questions[0].answers = [2, 0]
+    saveDeckFile(deck, dirs.userDir)
+
+    const listed = loadDecks({ userDir: dirs.userDir })
+    assert.deepEqual(listed.errors, [])
+    const loaded = listed.decks[0].questions[0]
+    assert.deepEqual(loaded.answers, [0, 2])
+    assert.equal('answer' in loaded, false)
+  } finally {
+    dirs.cleanup()
+  }
+})
+
 test('a deck that exceeds 512 KiB is refused before any file is written', () => {
   const dirs = tempDirs()
   try {

@@ -117,9 +117,10 @@
       }))
     }
 
-    function OptionButton({ option, index, state, disabled, onPick, t }) {
+    function OptionButton({ option, index, state, selected, multi, disabled, onPick, t }) {
       const classes = ['dshq-option']
       if (option.kind === 'text') classes.push('is-text')
+      if (selected) classes.push('is-selected')
       if (state === 'picked-correct') classes.push('is-picked-correct')
       else if (state === 'picked-wrong') classes.push('is-picked-wrong')
       else if (state === 'reveal-correct') classes.push('is-reveal-correct')
@@ -137,7 +138,9 @@
         className: classes.join(' '),
         onClick: () => onPick(index),
         disabled,
-        'aria-pressed': state === 'picked-correct' || state === 'picked-wrong' ? true : undefined,
+        'aria-pressed': selected || state === 'picked-correct' || state === 'picked-wrong'
+          ? true
+          : (multi ? false : undefined),
         'aria-label': `${letterOf(index)}. ${description}`,
       },
       h('span', { className: 'dshq-opt-letter', 'aria-hidden': true }, letterOf(index)),
@@ -147,17 +150,9 @@
       mark)
     }
 
-    function optionState(question, picked, index) {
-      if (picked === null || picked === undefined) return 'idle'
-      if (picked === question.answer) return index === picked ? 'picked-correct' : 'dim'
-      if (index === picked) return 'picked-wrong'
-      if (index === question.answer) return 'reveal-correct'
-      return 'dim'
-    }
-
-    function AnswerValue({ option, index, picked, good, t }) {
+    function AnswerValue({ option, index, good, t }) {
       const letter = letterOf(index)
-      const chipClass = `dshq-chip-letter${good ? ' is-good' : ''}`
+      const chipClass = `dshq-chip-letter${good ? ' is-good' : ' is-bad'}`
       return h('div', { className: 'dshq-pick-value' },
         h('span', { className: chipClass }, letter),
         option.kind === 'matrix'
@@ -166,9 +161,9 @@
     }
 
     function VerdictCard({ question, picked, t, onRetry }) {
-      const good = picked === question.answer
-      const pickedOption = question.options[picked]
-      const answerOption = question.options[question.answer]
+      const good = isCorrectAnswer(question, picked)
+      const correct = correctIndexes(question)
+      const pickedIndexes = toPickIndexes(picked)
       return h('div', { className: 'dshq-card' },
         h('div', { className: `dshq-verdict${good ? ' is-good' : ' is-bad'}`, style: { width: '100%' } },
           good ? h(CheckIcon, { size: 15 }) : h(CrossIcon, { size: 15 }),
@@ -179,11 +174,17 @@
           }, t('quiz.retry'))),
         h('div', { className: 'dshq-answer-row' },
           h('div', { className: 'dshq-pick' },
-            h('div', { className: 'dshq-pick-label' }, t('quiz.answerLabel')),
-            answerOption ? h(AnswerValue, { option: answerOption, index: question.answer, picked, good: true, t }) : null),
-          pickedOption && !good ? h('div', { className: 'dshq-pick' },
-            h('div', { className: 'dshq-pick-label' }, t('quiz.yourPick')),
-            h(AnswerValue, { option: pickedOption, index: picked, picked, good: false, t })) : null))
+            h('div', { className: 'dshq-pick-label' }, t(Array.isArray(question.answers) ? 'quiz.answersLabel' : 'quiz.answerLabel')),
+            correct.map((index) => question.options[index]
+              ? h(AnswerValue, { key: `answer-${index}`, option: question.options[index], index, good: true, t })
+              : null)),
+          !good
+            ? h('div', { className: 'dshq-pick' },
+              h('div', { className: 'dshq-pick-label' }, t('quiz.yourPick')),
+              pickedIndexes.map((index) => question.options[index]
+                ? h(AnswerValue, { key: `pick-${index}`, option: question.options[index], index, good: correct.includes(index), t })
+                : null))
+            : null))
     }
 
     function StepBlock({ step, t }) {
@@ -205,11 +206,13 @@
           question.formula ? h('div', { style: { marginTop: '10px' } },
             h('div', { className: 'dshq-section-title' }, t('aside.formula')),
             h('div', { className: 'dshq-formula' }, h(MathText, { text: question.formula, t }))) : null,
-          h('p', { className: 'dshq-hint', style: { margin: '10px 0 0' } }, t('quiz.pickHint')))
+          h('p', { className: 'dshq-hint', style: { margin: '10px 0 0' } }, t(Array.isArray(question.answers) ? 'quiz.pickHintMulti' : 'quiz.pickHint')))
       }
+      const correct = correctIndexes(question)
+      const pickedIndexes = toPickIndexes(picked)
       const diagnostics = question.options
         .map((option, index) => ({ option, index }))
-        .filter((entry) => entry.index !== question.answer && entry.option.note)
+        .filter((entry) => !correct.includes(entry.index) && entry.option.note)
       return h(React.Fragment, null,
         h(VerdictCard, { question, picked, t, onRetry }),
         question.formula ? h('div', { className: 'dshq-card' },
@@ -225,7 +228,7 @@
           h('div', { className: 'dshq-section-title' }, t('aside.diagnostics')),
           h('div', { className: 'dshq-diagnostics' }, diagnostics.map((entry) => h('div', {
             key: entry.index,
-            className: `dshq-diagnostic${entry.index === picked ? ' is-picked' : ''}`,
+            className: `dshq-diagnostic${pickedIndexes.includes(entry.index) ? ' is-picked' : ''}`,
           },
           h('span', { className: 'dshq-chip-letter' }, letterOf(entry.index)),
           h('div', { className: 'dshq-diagnostic-note' }, h(MathText, { text: entry.option.note, t })))))) : null)

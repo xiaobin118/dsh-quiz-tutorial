@@ -33,7 +33,9 @@
     function MistakeCard({ row, t, onView, onRedo, onToggle, onRemove }) {
       const { question, deck, rec } = row
       const mastered = rec.masteredAt !== null
-      const lastPick = Number.isInteger(rec.lastPick) ? rec.lastPick : null
+      const lastPick = rec.lastPick
+      const hasPick = lastPick !== null && lastPick !== undefined
+      const answerText = lettersFor(correctIndexes(question))
       return h('article', { className: 'dshq-mistake' },
         h('div', { className: 'dshq-mistake-top' },
           question && question.level
@@ -51,9 +53,9 @@
           : h('p', { className: 'dshq-mistake-prompt' }, t('mistakes.missingDeck')),
         question
           ? h('div', { className: 'dshq-mistake-meta' },
-            lastPick !== null
-              ? h('span', null, t('mistakes.lastWrong', { pick: letterOf(lastPick), answer: letterOf(question.answer) }))
-              : h('span', null, `${t('quiz.answerLabel')} ${letterOf(question.answer)}`),
+            hasPick
+              ? h('span', null, t('mistakes.lastWrong', { pick: lettersFor(lastPick), answer: answerText }))
+              : h('span', null, `${t('quiz.answerLabel')} ${answerText}`),
             h('span', null, t('mistakes.lastAt', { time: formatTime(rec.lastAt) })),
             mastered ? h('span', null, t('mistakes.masteredAt', { time: formatTime(rec.masteredAt) })) : null)
           : null,

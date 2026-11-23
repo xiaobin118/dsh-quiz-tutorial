@@ -53,7 +53,7 @@ Host 代码更新后必须重启 `dsh web`；只改 `client.js` 时刷新页面�
 
 - **每道题的答案和中间量必须自己算对**，写进 `steps`；禁止估算或占位；
 - 计算题要有尺寸/公式、代入、中间结果、验算；矩阵放进 `matrices`；
-- `options` 2–6 个，`answer` 是 0 基下标；错误选项尽量对应真实易错点；
+- `options` 2–6 个；单选 `answer` 是 0 基下标，多选 `answers` 是至少 2 个唯一下标（二选一）；错误选项尽量对应真实易错点；
 - 概念题不需要矩阵，但 `steps` 要写判断依据与易错点；
 - 公式必须写 LaTeX 并用 `$...$` / `$$...$$` 包住（KaTeX，支持 `bmatrix`）；不要用 Unicode
   数学符号或裸 `_`/`^`（见 [docs/deck-format.md](docs/deck-format.md)）；

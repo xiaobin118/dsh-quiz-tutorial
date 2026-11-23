@@ -34,7 +34,7 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
 
 - **Decks**: switch decks in the sidebar; every deck is generated for the review context via
   `/skill dsh-quiz` / `quiz_save_deck` (any subject), or written by the user.
-- **Question + solution**: matrices and 2–6 options; after answering, the aside shows the answer,
+- **Question + solution**: matrices and 2–6 options, single- or multi-select; after answering, the aside shows the answer,
   the formula, step-by-step arithmetic with intermediate matrices, pitfalls, and why each wrong
   option is wrong.
 - **Math rendering**: prompts/solutions/notes are rendered by DSH's KaTeX Markdown primitive —
@@ -46,9 +46,12 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
 - **`/skill dsh-quiz <topic>`**: the skill asks the agent to check existing decks, build a
   topic × cognitive-level blueprint, compute and independently re-check every answer and
   intermediate value, then save a validated deck via `quiz_save_deck`.
+- **Multi-select**: a question can use `"answers": [0, 2]` instead of `"answer"`; pick several
+  options and press Submit for exact-set grading (no partial credit). The mistake log records
+  the whole selection.
 - **Delete decks**: the × on a deck card deletes it (and clears that deck's local answers and
   mistakes). The plugin ships no built-in decks, so every listed deck can be removed.
-- Keys `A–F` / `1–6` answer, `←` / `→` move between questions.
+- Keys `A–F` / `1–6` pick (toggle on multi-select), `Enter` submits a multi-select, `←` / `→` move.
 
 ## Deck format
 
@@ -89,6 +92,9 @@ matrices with KaTeX `bmatrix` and routes every matrix/label through the same ren
 
 - Removed the bundled decks (`decks/`) and their generator: a fresh install starts empty and
   every deck comes from `/skill dsh-quiz` / `quiz_save_deck` or a user-written JSON file.
+- Added true multi-select: decks may use `answers: [0, 2]` (mutually exclusive with `answer`);
+  several options can be picked and submitted for exact-set grading, and the mistake log keeps
+  the whole selection.
 - Deck deletion now applies to every deck; the hide/restore flow for built-in decks is gone.
 - Sharper authoring rules: a topic × cognitive-level blueprint, at least three item types,
   balanced combination options, per-item re-solving, named distractor causes, no giveaway

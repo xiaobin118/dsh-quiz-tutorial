@@ -2,7 +2,7 @@
   "name": "dsh-quiz-tutorial",
   "version": "1.0.3",
   "private": false,
-  "description": "刷题场：把复习内容变成题集，题目旁给逐步手算解析，错题自动进错题本；支持 /skill 出题与题集删除/隐藏。",
+  "description": "刷题场：把复习内容变成题集，题目旁给逐步手算解析，支持单选/多选与错题本；支持 /skill 出题与题集删除。",
   "type": "module",
   "icon": "./icon.svg",
   "exports": {

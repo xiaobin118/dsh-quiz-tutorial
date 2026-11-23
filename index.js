@@ -93,14 +93,16 @@ const DECK_SCHEMA_HINT = `deck JSON 结构（必填项见括号）：
     "conditions": "P=0、S=1 之类的补充条件",
     "options": [{"kind": "matrix", "matrix": [[...]], "note": "这选项为什么错（可选）"},
                 {"kind": "text", "text": "文字选项"}],
-    "answer": 0,
+    "answer": 0,  // 单选：0 基下标
+    "answers": [0, 2],  // 多选：2 个及以上正确项，自动升序；answer/answers 二选一
     "formula": "本题用到的公式/知识点",
     "pitfall": "易错点",
     "steps": [{"title": "第 1 步 · ...", "body": "逐步手算，写出中间量",
                "matrices": [{"label": "中间结果", "matrix": [[...]]}]}]
   }]
 }
-规则：每题 options 2–6 个、answer 是 0 基下标；矩阵必须是矩形数字数组；所有答案与中间量必须真实计算过，不许估算。
+规则：每题 options 2–6 个；单选写 answer（0 基下标），多选写 answers（至少 2 个唯一下标，自动升序保存），
+两者只能出现一个；矩阵必须是矩形数字数组；所有答案与中间量必须真实计算过，不许估算。
 公式写法（硬性）：所有数学必须写成 LaTeX 并用 $...$ 包住（独立公式用 $$...$$），例如 $\\mu_k$、$\\sigma_k^2$、$\\hat{x}_i$、
 $H_{out} = \\lfloor(H + 2P - K)/S\\rfloor + 1$、$$J = \\sum_{k=1}^{K} \\|x - \\mu_k\\|^2$$。
 不要用 Unicode 数学符号（μ、σ²、Σ_{k}、×）代替 LaTeX，也不要在 $...$ 外写裸 _ / ^；渲染器是 KaTeX，不执行 HTML、不加载远程图片/链接。
@@ -366,6 +368,67 @@ function normalizeNotes(raw, path, errors) {
   return out
 }
 
+/**
+ * One question has either a single `answer` index or a multi-select `answers`
+ * array, never both.  Multi-select answers are validated strictly (integers,
+ * in range, unique, at least two) and stored sorted so the client can compare
+ * them as a set without caring about authoring order.
+ */
+function normalizeAnswerFields(question, options, path, errors) {
+  const hasSingle = question.answer !== undefined
+  const hasMulti = question.answers !== undefined
+  if (hasSingle && hasMulti) {
+    errors.push(`${path}.answer 与 ${path}.answers 只能二选一`)
+    return null
+  }
+  if (!hasSingle && !hasMulti) {
+    errors.push(`${path} 必须提供 answer（单选）或 answers（多选）`)
+    return null
+  }
+  if (hasSingle) {
+    const answer = Number.isInteger(question.answer) ? question.answer : numberValue(question.answer)
+    if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) {
+      errors.push(`${path}.answer 必须是 0 到 ${Math.max(options.length - 1, 0)} 之间的整数下标`)
+      return null
+    }
+    return { answer }
+  }
+  if (!Array.isArray(question.answers)) {
+    errors.push(`${path}.answers 必须是数组`)
+    return null
+  }
+  if (question.answers.length < 2) {
+    errors.push(`${path}.answers 至少要有 2 个正确项下标`)
+    return null
+  }
+  if (question.answers.length > options.length) {
+    errors.push(`${path}.answers 不能超过选项数（当前 ${options.length} 个）`)
+    return null
+  }
+  const seen = new Set()
+  let valid = true
+  for (const value of question.answers) {
+    if (!Number.isInteger(value)) {
+      errors.push(`${path}.answers 的每一项都必须是整数下标`)
+      valid = false
+      continue
+    }
+    if (value < 0 || value >= options.length) {
+      errors.push(`${path}.answers 的 ${value} 超出 0 到 ${Math.max(options.length - 1, 0)} 的范围`)
+      valid = false
+      continue
+    }
+    if (seen.has(value)) {
+      errors.push(`${path}.answers 含有重复下标 ${value}`)
+      valid = false
+      continue
+    }
+    seen.add(value)
+  }
+  if (!valid) return null
+  return { answers: [...question.answers].sort((left, right) => left - right) }
+}
+
 function normalizeDeck(raw) {
   const errors = []
   if (!isRecord(raw)) return { errors: ['题集必须是 JSON 对象'] }
@@ -407,13 +470,10 @@ function normalizeDeck(raw) {
     if (!prompt) errors.push(`${at}.prompt 不能为空`)
     const options = normalizeOptions(question.options, at, errors)
     if (options.length < LIMITS.optionsMin) errors.push(`${at}.options 至少要有 ${LIMITS.optionsMin} 个有效选项`)
-    const answer = Number.isInteger(question.answer) ? question.answer : numberValue(question.answer)
-    if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) {
-      errors.push(`${at}.answer 必须是 0 到 ${Math.max(options.length - 1, 0)} 之间的整数下标`)
-    }
+    const answerFields = normalizeAnswerFields(question, options, at, errors)
     const steps = normalizeSteps(question.steps, at, errors)
     const inputs = normalizeInputs(question.inputs, at, errors)
-    if (!topic || !prompt || options.length < LIMITS.optionsMin || !Number.isInteger(answer) || steps.length === 0) continue
+    if (!topic || !prompt || options.length < LIMITS.optionsMin || answerFields === null || steps.length === 0) continue
     const normalized = {
       id: qid,
       topic,
@@ -422,7 +482,7 @@ function normalizeDeck(raw) {
       inputs,
       conditions: bounded(question.conditions, LIMITS.conditions, `${at}.conditions`, errors),
       options,
-      answer,
+      ...answerFields,
       formula: bounded(question.formula, LIMITS.formula, `${at}.formula`, errors),
       steps,
       pitfall: bounded(question.pitfall, LIMITS.pitfall, `${at}.pitfall`, errors),

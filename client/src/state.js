@@ -8,6 +8,8 @@
  *
  * Provides: withoutDeckAnswers, withoutDeckMistakes, readStored, MISTAKE_SEP,
  * mistakeKey, splitMistakeKey, normalizeMistakes, resolveQueueItem, mistakeRows,
+ * isMultiAnswer, correctIndexes, toPickIndexes, togglePickIndex, isCorrectAnswer, lettersFor,
+ * optionState,
  * formatTime, deckFingerprint, diffDecks, refreshSummary, fetchDecks.
  * Requires: STORAGE_KEY (base.js).
  */
@@ -60,10 +62,72 @@ function normalizeMistakes(raw) {
     const wrong = Number.isFinite(record.wrong) && record.wrong > 0 ? Math.floor(record.wrong) : 1
     const lastAt = Number.isFinite(record.lastAt) ? record.lastAt : Date.now()
     const masteredAt = Number.isFinite(record.masteredAt) ? record.masteredAt : null
-    const lastPick = Number.isInteger(record.lastPick) ? record.lastPick : null
+    const rawPick = Array.isArray(record.lastPick)
+      ? record.lastPick.filter((entry) => Number.isInteger(entry)).sort((left, right) => left - right)
+      : record.lastPick
+    const lastPick = Array.isArray(rawPick)
+      ? (rawPick.length > 0 ? rawPick : null)
+      : (Number.isInteger(rawPick) ? rawPick : null)
     out[key] = { wrong, lastAt, masteredAt, lastPick }
   }
   return out
+}
+
+/** True for a deck question that carries `answers` instead of `answer`. */
+function isMultiAnswer(question) {
+  return question !== null && typeof question === 'object' && Array.isArray(question.answers)
+}
+
+/** The correct option indexes for either question shape. */
+function correctIndexes(question) {
+  if (isMultiAnswer(question)) return question.answers
+  return question && Number.isInteger(question.answer) ? [question.answer] : []
+}
+
+/** Normalize a stored answer (number, array, or junk) to an index list. */
+function toPickIndexes(value) {
+  if (Array.isArray(value)) return value.filter((entry) => Number.isInteger(entry))
+  return Number.isInteger(value) ? [value] : []
+}
+
+/** Toggle one index in a sorted multi-select list. */
+function togglePickIndex(picks, index) {
+  const current = toPickIndexes(picks)
+  return current.includes(index)
+    ? current.filter((entry) => entry !== index)
+    : [...current, index].sort((left, right) => left - right)
+}
+
+/** Exact set match: multi-select has no partial credit. */
+function isCorrectAnswer(question, value) {
+  const correct = [...correctIndexes(question)].sort((left, right) => left - right)
+  const picks = [...toPickIndexes(value)].sort((left, right) => left - right)
+  if (picks.length !== correct.length) return false
+  return picks.every((pick, index) => pick === correct[index])
+}
+
+/** "A, C" for a value; used by verdict cards and the mistake log. */
+function lettersFor(value) {
+  return [...toPickIndexes(value)].sort((left, right) => left - right).map(letterOf).join(', ')
+}
+
+/**
+ * Visual state of one option after (or before) answering.  `selected` is the
+ * pre-submit draft state for multi-select and is handled by the component; this
+ * function only describes the graded states.
+ */
+function optionState(question, picked, index) {
+  if (picked === null || picked === undefined) return 'idle'
+  if (isMultiAnswer(question)) {
+    const picks = new Set(toPickIndexes(picked))
+    const correct = new Set(correctIndexes(question))
+    if (picks.has(index)) return correct.has(index) ? 'picked-correct' : 'picked-wrong'
+    return correct.has(index) ? 'reveal-correct' : 'dim'
+  }
+  if (picked === question.answer) return index === picked ? 'picked-correct' : 'dim'
+  if (index === picked) return 'picked-wrong'
+  if (index === question.answer) return 'reveal-correct'
+  return 'dim'
 }
 
 function resolveQueueItem(decks, item) {
