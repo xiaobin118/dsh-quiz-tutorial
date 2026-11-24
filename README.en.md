@@ -44,7 +44,8 @@ sidebar. If you installed the earlier dev bundle `dsh-quiz`, remove it first
 - **Mistake log**: wrong answers are collected automatically; filter, review the solution, redo,
   mark fixed, or review all open mistakes in a queue. A correct retry marks the entry fixed.
 - **`/skill dsh-quiz <topic>`**: the skill asks the agent to check existing decks, build a
-  topic × cognitive-level blueprint, compute and independently re-check every answer and
+  topic × cognitive-level blueprint, design 15–20 items (with 1–2 chain/fusion capstones and
+  6–8-statement combination items), compute and independently re-check every answer and
   intermediate value, then save a validated deck via `quiz_save_deck`.
 - **Multi-select**: a question can use `"answers": [0, 2]` instead of `"answer"`; pick several
   options and press Submit for exact-set grading (no partial credit). The mistake log records
@@ -96,9 +97,9 @@ matrices with KaTeX `bmatrix` and routes every matrix/label through the same ren
   several options can be picked and submitted for exact-set grading, and the mistake log keeps
   the whole selection.
 - Deck deletion now applies to every deck; the hide/restore flow for built-in decks is gone.
-- Sharper authoring rules: a topic × cognitive-level blueprint, at least three item types,
-  balanced combination options, per-item re-solving, named distractor causes, no giveaway
-  cues, and no cross-item repeats.
+- Sharper authoring rules: a topic × cognitive-level blueprint, 15–20 items, at least three
+  item types, 6–8-statement combination items, 1–2 chain/fusion capstones, tiered per-item
+  re-solving, named distractor causes, no giveaway cues, and no cross-item repeats.
 - The save validator now rejects LaTeX broken by JSON escapes (tab/form-feed/CR, newlines
   inside inline math) and tells the author to double the backslashes.
 
